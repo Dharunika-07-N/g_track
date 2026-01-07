@@ -23,3 +23,13 @@ export async function addStudent(username, name) {
   }
   return res.json();
 }
+
+export async function refreshStudent(id) {
+  const res = await fetch(`${API_URL}/students/${id}/refresh`, {
+    method: "POST"
+  });
+  if (!res.ok) {
+    throw new Error("Failed to refresh");
+  }
+  return res.json();
+}

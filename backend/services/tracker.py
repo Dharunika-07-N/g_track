@@ -4,15 +4,20 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 import asyncio
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 class GitHubTracker:
     def __init__(self, token: Optional[str] = None):
-        self.token = token
+        self.token = token or os.getenv("GITHUB_TOKEN")
         self.headers = {
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'GithubActivityTracker/1.0'
         }
-        if token:
-            self.headers['Authorization'] = f'token {token}'
+        if self.token:
+            self.headers['Authorization'] = f'token {self.token}'
         self.base_url = 'https://api.github.com'
     
     async def get_user_info(self, client: httpx.AsyncClient, username: str) -> Dict:
@@ -35,8 +40,9 @@ class GitHubTracker:
         
         while True:
             try:
+                endpoint = f"{self.base_url}/users/{username}/events" if self.token else f"{self.base_url}/users/{username}/events/public"
                 resp = await client.get(
-                    f"{self.base_url}/users/{username}/events/public",
+                    endpoint,
                     params={'page': page, 'per_page': 100}
                 )
                 if resp.status_code != 200:

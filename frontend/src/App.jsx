@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { fetchStats, fetchStudents, addStudent } from './api';
+import { fetchStats, fetchStudents, addStudent, refreshStudent } from './api';
 
 function App() {
   const [stats, setStats] = useState({ total_students: 0, active_students: 0, top_contributor: 'None' });
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [refreshingId, setRefreshingId] = useState(null);
 
   // Form state
   const [newUsername, setNewUsername] = useState('');
@@ -21,6 +22,23 @@ function App() {
       console.error("Failed to load data", e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async (id) => {
+    setRefreshingId(id);
+    try {
+      await refreshStudent(id);
+      // Wait a bit for backend to process or just reload immediately?
+      // Reload immediately usually gets old data if async. 
+      // Ideally we wait a second or show "Update scheduled".
+      setTimeout(() => {
+        loadData();
+        setRefreshingId(null);
+      }, 2000);
+    } catch (e) {
+      console.error(e);
+      setRefreshingId(null);
     }
   };
 
@@ -102,11 +120,12 @@ function App() {
                 <th>Issues</th>
                 <th>Total Events</th>
                 <th>Activity Score</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" style={{ textAlign: 'center' }}>Loading...</td></tr>
+                <tr><td colSpan="8" style={{ textAlign: 'center' }}>Loading...</td></tr>
               ) : students.map((student, index) => (
                 <tr key={student.id}>
                   <td>
@@ -147,6 +166,16 @@ function App() {
                     </span>
                   </td>
                   <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{student.activity_score || 0}</td>
+                  <td>
+                    <button
+                      className="btn"
+                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                      onClick={() => handleRefresh(student.id)}
+                      disabled={refreshingId === student.id}
+                    >
+                      {refreshingId === student.id ? '...' : '↻'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

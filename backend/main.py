@@ -140,6 +140,15 @@ async def add_student(student: StudentCreate, background_tasks: BackgroundTasks,
     
     return new_student
 
+@app.post("/students/{student_id}/refresh")
+async def refresh_student(student_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    background_tasks.add_task(update_student_data, student.id)
+    return {"message": "Update scheduled"}
+
 @app.get("/students/", response_model=List[StudentRead])
 def read_students(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     # Order by activity score desc
