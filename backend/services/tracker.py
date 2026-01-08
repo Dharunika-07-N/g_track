@@ -109,7 +109,15 @@ class GitHubTracker:
                     stats["active_dates"].add(created_at[:10]) # YYYY-MM-DD
                     
                 if etype == "PushEvent":
-                    stats["commits"] += event.get("payload", {}).get("size", 0)
+                    payload = event.get("payload", {})
+                    # GitHub removed size/commits from events API in late 2025 for many users
+                    # Fallback to 1 if size is missing, as a PushEvent always contains at least one commit
+                    size = payload.get("size")
+                    if size is None:
+                        # Sometimes 'commits' is still present in some API versions, but usually removed
+                        commits = payload.get("commits", [])
+                        size = len(commits) if commits else 1
+                    stats["commits"] += size
                 elif etype == "PullRequestEvent":
                     # Count opened or whatever, but simplistic count is fine for now
                     stats["pull_requests"] += 1
