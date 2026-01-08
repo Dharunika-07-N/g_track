@@ -11,7 +11,21 @@ from typing import List, Optional
 # Import the service
 from services.tracker import tracker_service
 
-app = FastAPI(title="Github Activity Tracker")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Application starting up...")
+    scheduler.start()
+    # Trigger initial update immediately
+    await scheduled_update_all()
+    yield
+    # Shutdown
+    print("Application shutting down...")
+    scheduler.shutdown()
+
+app = FastAPI(title="Github Activity Tracker", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
@@ -50,7 +64,7 @@ class StudentRead(BaseModel):
     last_updated: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # --- background tasks ---
 async def update_student_data(student_id: int):
@@ -61,9 +75,11 @@ async def update_student_data(student_id: int):
         if not student:
             return
             
+        print(f"Updating data for student: {student.github_username}")
         data = await tracker_service.analyze_user(student.github_username)
         if data:
             s_stats = data["stats"]
+            print(f"Stats found for {student.github_username}: {s_stats}")
             student.name = data["name"]
             student.avatar_url = data["avatar_url"]
             student.profile_url = data["profile_url"]
@@ -78,57 +94,57 @@ async def update_student_data(student_id: int):
             
             # Simple Activity Score Logic from User Request
             # Score = (Commits × 2) + (Pull Requests × 3) + (Active Days × 1)
-            # We don't have exact "Active Days" in the simplified stats, using total_events as proxy or just simplified
-            # Let's say 1 event roughly implies activity.
-            student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.issues * 1)
+            active_days = s_stats.get("active_days", 0)
+            student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (active_days * 1)
             
             db.commit()
+            print(f"Successfully updated student {student.github_username}")
+        else:
+            print(f"No data received for student {student.github_username}")
     except Exception as e:
         print(f"Error updating student {student_id}: {e}")
     finally:
         db.close()
 
-def scheduled_update_all():
-    # This runs in a thread, so we need to run the async updates carefully
-    # simpler to just fetch IDs and spawn tasks or run loop
+async def scheduled_update_all():
+    print("Executing scheduled poll of all students...")
     db = SessionLocal()
     students = db.query(Student).all()
     s_ids = [s.id for s in students]
     db.close()
     
-    # We need to run async code from sync scheduler. 
-    # Proper way in FastAPI/Uvicorn is often just triggering it via an event loop if accessible, 
-    # but creating a fresh loop for the job is safer or using `asyncio.run`
-    async def runner():
-        for sid in s_ids:
-            await update_student_data(sid)
-    
+    for sid in s_ids:
+        await update_student_data(sid)
+    print("Scheduled poll complete.")
+
+def sync_scheduler_wrapper():
+    """Wrapper to run the async scheduled update from the sync APScheduler"""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If we are in the main loop (unlikely for a thread scheduler), create task
-            loop.create_task(runner())
-        else:
-            asyncio.run(runner())
-    except RuntimeError:
-        asyncio.run(runner())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(scheduled_update_all())
+        loop.close()
+    except Exception as e:
+        print(f"Error in sync_scheduler_wrapper: {e}")
 
 scheduler = BackgroundScheduler()
-scheduler.add_job(scheduled_update_all, 'interval', minutes=60)
-scheduler.start()
+scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
 
-@app.on_event("shutdown")
-def shutdown_event():
-    scheduler.shutdown()
+
 
 @app.post("/students/", response_model=StudentRead)
 async def add_student(student: StudentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    db_student = db.query(Student).filter(Student.github_username == student.github_username).first()
+    # Sanitize username (handle profile URLs)
+    clean_username = student.github_username.strip().rstrip('/')
+    if '/' in clean_username:
+        clean_username = clean_username.split('/')[-1]
+    
+    db_student = db.query(Student).filter(Student.github_username == clean_username).first()
     if db_student:
         raise HTTPException(status_code=400, detail="Student already tracked")
     
     new_student = Student(
-        github_username=student.github_username,
+        github_username=clean_username,
         name=student.name
     )
     db.add(new_student)
@@ -165,7 +181,8 @@ def dashboard_stats(db: Session = Depends(get_db)):
     return {
         "total_students": total_students,
         "active_students": active_students,
-        "top_contributor": top_student.name if top_student else "None"
+        "top_contributor": top_student.name if top_student else "None",
+        "github_token_configured": bool(tracker_service.token)
     }
 
 if __name__ == "__main__":

@@ -25,6 +25,14 @@ class GitHubTracker:
             resp = await client.get(f"{self.base_url}/users/{username}")
             if resp.status_code == 200:
                 return resp.json()
+            elif resp.status_code == 404:
+                return {"error": "User not found"}
+            elif resp.status_code == 403:
+                # Check for rate limiting
+                if resp.headers.get("X-RateLimit-Remaining") == "0":
+                    reset_time = resp.headers.get("X-RateLimit-Reset")
+                    return {"error": "Rate limit exceeded", "reset_at": reset_time}
+                return {"error": "Access forbidden"}
             return {"error": f"Status {resp.status_code}"}
         except Exception as e:
             return {"error": str(e)}
@@ -32,10 +40,6 @@ class GitHubTracker:
     async def get_user_events(self, client: httpx.AsyncClient, username: str, days: int = 30) -> List[Dict]:
         events = []
         page = 1
-        # Github events API checks public events. `per_page` max is 100.
-        # We fetch a few pages to cover the days.
-        # Note: GitHub API limits retrieving events to the last 90 days or 300 events.
-        
         cutoff = datetime.utcnow() - timedelta(days=days)
         
         while True:
@@ -45,14 +49,16 @@ class GitHubTracker:
                     endpoint,
                     params={'page': page, 'per_page': 100}
                 )
+                
                 if resp.status_code != 200:
+                    if resp.status_code == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
+                        print(f"Rate limit hit for {username}")
                     break
                     
                 data = resp.json()
                 if not data:
                     break
                 
-                # Check dates
                 older_events_found = False
                 for event in data:
                     created_at = datetime.strptime(event['created_at'], '%Y-%m-%dT%H:%M:%SZ')
@@ -65,9 +71,10 @@ class GitHubTracker:
                     break
                 
                 page += 1
-                if page > 5: # Safety break to avoid excess API calls
+                if page > 5: # Safety break
                     break
-            except Exception:
+            except Exception as e:
+                print(f"Error fetching events: {e}")
                 break
                 
         return events
@@ -86,7 +93,8 @@ class GitHubTracker:
                 "issues": 0,
                 "reviews": 0,
                 "repos_contributed_to": set(),
-                "total_events": len(events)
+                "total_events": len(events),
+                "active_dates": set()
             }
             
             for event in events:
@@ -94,6 +102,11 @@ class GitHubTracker:
                 repo_name = event.get("repo", {}).get("name")
                 if repo_name:
                     stats["repos_contributed_to"].add(repo_name)
+                
+                # Track active days
+                created_at = event.get("created_at")
+                if created_at:
+                    stats["active_dates"].add(created_at[:10]) # YYYY-MM-DD
                     
                 if etype == "PushEvent":
                     stats["commits"] += event.get("payload", {}).get("size", 0)
@@ -116,7 +129,8 @@ class GitHubTracker:
                     "issues": stats["issues"],
                     "reviews": stats["reviews"],
                     "repo_count": len(stats["repos_contributed_to"]),
-                    "total_events": stats["total_events"]
+                    "total_events": stats["total_events"],
+                    "active_days": len(stats["active_dates"])
                 }
             }
 
