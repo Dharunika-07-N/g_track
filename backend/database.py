@@ -29,6 +29,7 @@ class Student(Base):
     reviews = Column(Integer, default=0)
     total_events = Column(Integer, default=0)
     repo_count = Column(Integer, default=0)
+    active_days = Column(Integer, default=0)
     
     # Derived scores (optional, can be calculated on fly, but storing for sorting is nice)
     activity_score = Column(Integer, default=0)

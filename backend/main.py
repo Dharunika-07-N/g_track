@@ -61,6 +61,8 @@ class StudentRead(BaseModel):
     reviews: int
     repo_count: int
     total_events: int
+    activity_score: int
+    active_days: int = 0
     last_updated: datetime
 
     class Config:
@@ -90,12 +92,12 @@ async def update_student_data(student_id: int):
             student.reviews = s_stats["reviews"]
             student.repo_count = s_stats["repo_count"]
             student.total_events = s_stats["total_events"]
+            student.active_days = s_stats.get("active_days", 0)
             student.last_updated = datetime.utcnow()
             
             # Simple Activity Score Logic from User Request
             # Score = (Commits × 2) + (Pull Requests × 3) + (Active Days × 1)
-            active_days = s_stats.get("active_days", 0)
-            student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (active_days * 1)
+            student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
             
             db.commit()
             print(f"Successfully updated student {student.github_username}")
