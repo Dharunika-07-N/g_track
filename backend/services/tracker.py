@@ -37,7 +37,7 @@ class GitHubTracker:
         except Exception as e:
             return {"error": str(e)}
 
-    async def get_user_events(self, client: httpx.AsyncClient, username: str, days: int = 30) -> List[Dict]:
+    async def get_user_events(self, client: httpx.AsyncClient, username: str, days: int = 365) -> List[Dict]:
         events = []
         page = 1
         cutoff = datetime.utcnow() - timedelta(days=days)
@@ -51,8 +51,6 @@ class GitHubTracker:
                 )
                 
                 if resp.status_code != 200:
-                    if resp.status_code == 403 and resp.headers.get("X-RateLimit-Remaining") == "0":
-                        print(f"Rate limit hit for {username}")
                     break
                     
                 data = resp.json()
@@ -71,7 +69,7 @@ class GitHubTracker:
                     break
                 
                 page += 1
-                if page > 5: # Safety break
+                if page > 10: # Increased safety break to get more events if available
                     break
             except Exception as e:
                 print(f"Error fetching events: {e}")
@@ -85,7 +83,8 @@ class GitHubTracker:
             if "error" in user_info:
                 return None
             
-            events = await self.get_user_events(client, username)
+            # Fetch as much history as GitHub Events allows (usually 90 days)
+            events = await self.get_user_events(client, username, days=365)
             
             stats = {
                 "commits": 0,
@@ -97,40 +96,46 @@ class GitHubTracker:
                 "active_dates": set()
             }
             
+            # Dictionary to store daily breakdowns: { 'YYYY-MM-DD': { 'commits': 0, ... } }
+            daily_stats = defaultdict(lambda: {"commits": 0, "prs": 0, "issues": 0, "reviews": 0})
+            
             for event in events:
                 etype = event.get("type")
                 repo_name = event.get("repo", {}).get("name")
                 if repo_name:
                     stats["repos_contributed_to"].add(repo_name)
                 
-                # Track active days
                 created_at = event.get("created_at")
-                if created_at:
-                    stats["active_dates"].add(created_at[:10]) # YYYY-MM-DD
+                if not created_at:
+                    continue
+                
+                date_key = created_at[:10] # YYYY-MM-DD
+                stats["active_dates"].add(date_key)
                     
                 if etype == "PushEvent":
                     payload = event.get("payload", {})
-                    # GitHub removed size/commits from events API in late 2025 for many users
-                    # Fallback to 1 if size is missing, as a PushEvent always contains at least one commit
                     size = payload.get("size")
                     if size is None:
-                        # Sometimes 'commits' is still present in some API versions, but usually removed
                         commits = payload.get("commits", [])
                         size = len(commits) if commits else 1
                     stats["commits"] += size
+                    daily_stats[date_key]["commits"] += size
                 elif etype == "PullRequestEvent":
-                    # Count opened or whatever, but simplistic count is fine for now
                     stats["pull_requests"] += 1
+                    daily_stats[date_key]["prs"] += 1
                 elif etype == "IssuesEvent":
                     stats["issues"] += 1
+                    daily_stats[date_key]["issues"] += 1
                 elif etype == "PullRequestReviewEvent":
                     stats["reviews"] += 1
+                    daily_stats[date_key]["reviews"] += 1
             
             return {
                 "username": user_info.get("login"),
                 "name": user_info.get("name") or user_info.get("login"),
                 "avatar_url": user_info.get("avatar_url"),
                 "profile_url": user_info.get("html_url"),
+                "daily_stats": dict(daily_stats),
                 "stats": {
                     "commits": stats["commits"],
                     "pull_requests": stats["pull_requests"],

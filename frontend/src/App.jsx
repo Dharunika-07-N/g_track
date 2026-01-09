@@ -1,21 +1,26 @@
 import { useState, useEffect } from 'react';
-import { fetchStats, fetchStudents, addStudent, refreshStudent } from './api';
+import { fetchStats, fetchStudents, addStudent, refreshStudent, removeStudent, uploadStudents } from './api';
 
 function App() {
   const [stats, setStats] = useState({ total_students: 0, active_students: 0, top_contributor: 'None' });
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [refreshingId, setRefreshingId] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [period, setPeriod] = useState('monthly');
 
   // Form state
   const [newUsername, setNewUsername] = useState('');
   const [newName, setNewName] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
   const [error, setError] = useState('');
+  const [uploadMessage, setUploadMessage] = useState('');
 
   const loadData = async () => {
     try {
-      const [statsData, studentsData] = await Promise.all([fetchStats(), fetchStudents()]);
+      const [statsData, studentsData] = await Promise.all([fetchStats(period), fetchStudents(period)]);
       setStats(statsData);
       setStudents(studentsData);
     } catch (e) {
@@ -42,11 +47,22 @@ function App() {
     }
   };
 
+  const handleRemove = async (id) => {
+    if (!window.confirm("Are you sure you want to remove this student?")) return;
+    try {
+      await removeStudent(id);
+      loadData();
+    } catch (e) {
+      console.error(e);
+      alert("Failed to remove student");
+    }
+  };
+
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 30000); // Poll every 30s
     return () => clearInterval(interval);
-  }, []);
+  }, [period]);
 
   const handleAddStudent = async (e) => {
     e.preventDefault();
@@ -62,6 +78,29 @@ function App() {
     }
   };
 
+  const handleUpload = async (e) => {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploading(true);
+    setError('');
+    setUploadMessage('');
+    try {
+      const resp = await uploadStudents(uploadFile);
+      setUploadMessage(resp.message);
+      setUploadFile(null);
+      // Reset after 3 seconds or on close
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setUploadMessage('');
+        loadData();
+      }, 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="container">
       <header className="header">
@@ -73,9 +112,25 @@ function App() {
           </svg>
           <span>GitTrack</span>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + Add Student
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <select
+            className="input"
+            style={{ width: 'auto', padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.875rem' }}
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+          >
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="all">All Time</option>
+          </select>
+          <button className="btn btn-secondary" onClick={() => setShowUploadModal(true)}>
+            Upload
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            + Add Student
+          </button>
+        </div>
       </header>
 
       {/* Stats Cards */}
@@ -86,7 +141,7 @@ function App() {
         </div>
         <div className="card">
           <div className="stat-value">{stats.active_students}</div>
-          <div className="stat-label">Active (30d)</div>
+          <div className="stat-label">Active ({period})</div>
         </div>
         <div className="card">
           <div className="stat-value" style={{ fontSize: '1.5rem' }}>{stats.top_contributor}</div>
@@ -167,14 +222,25 @@ function App() {
                   </td>
                   <td style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{student.activity_score || 0}</td>
                   <td>
-                    <button
-                      className="btn"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                      onClick={() => handleRefresh(student.id)}
-                      disabled={refreshingId === student.id}
-                    >
-                      {refreshingId === student.id ? '...' : '↻'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        className="btn"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                        onClick={() => handleRefresh(student.id)}
+                        disabled={refreshingId === student.id}
+                        title="Refresh Data"
+                      >
+                        {refreshingId === student.id ? '...' : '↻'}
+                      </button>
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                        onClick={() => handleRemove(student.id)}
+                        title="Remove Student"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -222,6 +288,53 @@ function App() {
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn" style={{ background: '#f1f5f9' }} onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Start Tracking</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 50, backdropFilter: 'blur(4px)'
+        }} onClick={() => { if (!uploading) setShowUploadModal(false); }}>
+          <div className="card" style={{ width: '450px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2>Upload Students</h2>
+              <button onClick={() => setShowUploadModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem' }}>&times;</button>
+            </div>
+
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Upload an Excel file (.xlsx) containing student names and GitHub profile URLs/usernames.
+            </p>
+
+            {error && <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{error}</div>}
+            {uploadMessage && <div style={{ background: '#dcfce7', color: '#166534', padding: '0.75rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.875rem' }}>{uploadMessage}</div>}
+
+            <form onSubmit={handleUpload}>
+              <div style={{ border: '2px dashed var(--border)', padding: '2rem', borderRadius: 'var(--radius)', textAlign: 'center', marginBottom: '1.5rem' }}>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={e => setUploadFile(e.target.files[0])}
+                  style={{ display: 'none' }}
+                  id="excel-upload"
+                  required
+                />
+                <label htmlFor="excel-upload" style={{ cursor: 'pointer' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+                  <div style={{ fontWeight: '600' }}>{uploadFile ? uploadFile.name : 'Click to select Excel file'}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Support .xlsx and .xls</div>
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <button type="button" className="btn" style={{ background: '#f1f5f9' }} onClick={() => setShowUploadModal(false)} disabled={uploading}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={!uploadFile || uploading}>
+                  {uploading ? 'Processing...' : 'Upload & Process'}
+                </button>
               </div>
             </form>
           </div>

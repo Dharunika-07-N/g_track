@@ -21,7 +21,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   letter-spacing: -0.025em;
   margin: 0;
 }
@@ -72,6 +74,27 @@ h1, h2, h3 {
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-danger:hover {
+  background: #fecaca;
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: var(--text-main);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+  transform: translateY(-1px);
+}
+
 .input {
   width: 100%;
   padding: 0.75rem;
@@ -101,7 +124,9 @@ h1, h2, h3 {
 }
 
 @media (max-width: 768px) {
-  .grid-cols-4, .grid-cols-2 {
+
+  .grid-cols-4,
+  .grid-cols-2 {
     grid-template-columns: 1fr;
   }
 }
@@ -155,10 +180,25 @@ tr:last-child td {
   font-weight: 600;
 }
 
-.badge-gold { background: #fef3c7; color: #d97706; }
-.badge-silver { background: #f1f5f9; color: #64748b; }
-.badge-bronze { background: #ffedd5; color: #c2410c; }
-.badge-blue { background: #e0e7ff; color: #4338ca; }
+.badge-gold {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.badge-silver {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.badge-bronze {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.badge-blue {
+  background: #e0e7ff;
+  color: #4338ca;
+}
 
 /* Dashboard Specifics */
 .stat-value {
@@ -166,6 +206,7 @@ tr:last-child td {
   font-weight: 700;
   background: linear-gradient(135deg, var(--text-main) 0%, var(--text-muted) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

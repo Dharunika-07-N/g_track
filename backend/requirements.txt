@@ -6,3 +6,6 @@ pydantic
 python-dotenv
 apscheduler
 httpx
+pandas
+openpyxl
+python-multipart

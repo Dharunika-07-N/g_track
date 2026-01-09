@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -22,7 +22,7 @@ class Student(Base):
     avatar_url = Column(String)
     last_updated = Column(DateTime, default=datetime.utcnow)
     
-    # Metrics
+    # Metrics (These will now be 'Current/Overall' cached stats)
     total_commits = Column(Integer, default=0)
     pull_requests = Column(Integer, default=0)
     issues = Column(Integer, default=0)
@@ -31,18 +31,18 @@ class Student(Base):
     repo_count = Column(Integer, default=0)
     active_days = Column(Integer, default=0)
     
-    # Derived scores (optional, can be calculated on fly, but storing for sorting is nice)
+    # Derived scores
     activity_score = Column(Integer, default=0)
 
     # Relationships
-    logs = relationship("ActivityLog", back_populates="student")
+    logs = relationship("ActivityLog", back_populates="student", cascade="all, delete-orphan")
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"))
-    date = Column(DateTime, default=datetime.utcnow)
+    date_str = Column(String, index=True) # YYYY-MM-DD
     
     commits_count = Column(Integer, default=0)
     pr_count = Column(Integer, default=0)
@@ -50,6 +50,8 @@ class ActivityLog(Base):
     review_count = Column(Integer, default=0)
     
     student = relationship("Student", back_populates="logs")
+    
+    __table_args__ = (UniqueConstraint('student_id', 'date_str', name='_student_date_uc'),)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

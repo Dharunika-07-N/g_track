@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
 from database import SessionLocal, Student, ActivityLog, init_db
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 from typing import List, Optional
+import pandas as pd
+import io
 
 # Import the service
 from services.tracker import tracker_service
@@ -86,6 +88,26 @@ async def update_student_data(student_id: int):
             student.avatar_url = data["avatar_url"]
             student.profile_url = data["profile_url"]
             
+            # Update daily logs
+            daily_stats = data.get("daily_stats", {})
+            for day_str, d_data in daily_stats.items():
+                log = db.query(ActivityLog).filter(
+                    ActivityLog.student_id == student.id,
+                    ActivityLog.date_str == day_str
+                ).first()
+                if not log:
+                    log = ActivityLog(student_id=student.id, date_str=day_str)
+                    db.add(log)
+                
+                log.commits_count = d_data["commits"]
+                log.pr_count = d_data["prs"]
+                log.issue_count = d_data["issues"]
+                log.review_count = d_data["reviews"]
+            
+            db.commit() # Save logs
+            
+            # Recalculate student aggregates (Last 30 days by default for profile view)
+            # but we'll keep the student object stats as a "Recent Activity" cache
             student.total_commits = s_stats["commits"]
             student.pull_requests = s_stats["pull_requests"]
             student.issues = s_stats["issues"]
@@ -95,8 +117,6 @@ async def update_student_data(student_id: int):
             student.active_days = s_stats.get("active_days", 0)
             student.last_updated = datetime.utcnow()
             
-            # Simple Activity Score Logic from User Request
-            # Score = (Commits × 2) + (Pull Requests × 3) + (Active Days × 1)
             student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
             
             db.commit()
@@ -107,6 +127,20 @@ async def update_student_data(student_id: int):
         print(f"Error updating student {student_id}: {e}")
     finally:
         db.close()
+
+def get_period_cutoff(period: str) -> Optional[str]:
+    now = datetime.utcnow()
+    if period == "weekly":
+        cutoff = now - timedelta(days=7)
+    elif period == "monthly":
+        cutoff = now - timedelta(days=30)
+    elif period == "yearly":
+        cutoff = now - timedelta(days=365)
+    else: # all
+        return "2000-01-01" # effectively everything
+    return cutoff.strftime("%Y-%m-%d")
+
+from sqlalchemy import func
 
 async def scheduled_update_all():
     print("Executing scheduled poll of all students...")
@@ -167,23 +201,159 @@ async def refresh_student(student_id: int, background_tasks: BackgroundTasks, db
     background_tasks.add_task(update_student_data, student.id)
     return {"message": "Update scheduled"}
 
+@app.post("/students/upload")
+async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Only Excel files are allowed")
+    
+    try:
+        contents = await file.read()
+        df = pd.read_excel(io.BytesIO(contents))
+        
+        # Find columns
+        name_col = None
+        url_col = None
+        
+        for col in df.columns:
+            c_low = str(col).lower()
+            if 'name' in c_low and not name_col:
+                name_col = col
+            if ('github' in c_low or 'url' in c_low or 'profile' in c_low or 'username' in c_low) and not url_col:
+                url_col = col
+        
+        if not name_col or not url_col:
+            raise HTTPException(status_code=400, detail=f"Required columns (Name and GitHub URL) not found. Found columns: {list(df.columns)}")
+            
+        added_count = 0
+        for _, row in df.iterrows():
+            name = str(row[name_col]).strip()
+            url = str(row[url_col]).strip()
+            
+            if not name or not url or url.lower() == 'nan' or name.lower() == 'nan':
+                continue
+                
+            # Extract username from URL if it's a URL
+            clean_username = url.rstrip('/')
+            if '/' in clean_username:
+                clean_username = clean_username.split('/')[-1]
+            
+            # Final check to avoid empty or invalid usernames
+            if not clean_username or clean_username.lower() == 'nan':
+                continue
+
+            # Check if exists
+            exists = db.query(Student).filter(Student.github_username == clean_username).first()
+            if not exists:
+                new_student = Student(github_username=clean_username, name=name)
+                db.add(new_student)
+                db.commit()
+                db.refresh(new_student)
+                background_tasks.add_task(update_student_data, new_student.id)
+                added_count += 1
+                
+        return {"message": f"Successfully processed. Added {added_count} new students."}
+        
+    except Exception as e:
+        print(f"Excel upload error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+
+@app.delete("/students/{student_id}")
+async def delete_student(student_id: int, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    db.delete(student)
+    db.commit()
+    return {"message": "Student removed successfully"}
+
 @app.get("/students/", response_model=List[StudentRead])
-def read_students(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    # Order by activity score desc
-    return db.query(Student).order_by(Student.activity_score.desc()).offset(skip).limit(limit).all()
+def read_students(period: str = "monthly", skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    cutoff = get_period_cutoff(period)
+    
+    # We need to aggregate stats from logs for the period
+    students = db.query(Student).all()
+    results = []
+    
+    for s in students:
+        # Sum logs for the period
+        logs = db.query(
+            func.sum(ActivityLog.commits_count).label("commits"),
+            func.sum(ActivityLog.pr_count).label("prs"),
+            func.sum(ActivityLog.issue_count).label("issues"),
+            func.sum(ActivityLog.review_count).label("reviews"),
+            func.count(ActivityLog.id).label("active_days")
+        ).filter(
+            ActivityLog.student_id == s.id,
+            ActivityLog.date_str >= cutoff
+        ).first()
+        
+        commits = logs.commits or 0
+        prs = logs.prs or 0
+        issues = logs.issues or 0
+        reviews = logs.reviews or 0
+        active_days = logs.active_days or 0
+        
+        # Calculate score for the period
+        score = (commits * 2) + (prs * 3) + (active_days * 1)
+        
+        # Create a transient object or dict that matches StudentRead
+        # Actually Pydantic can handle dicts if we return them or a list of objects
+        results.append({
+            "id": s.id,
+            "name": s.name,
+            "github_username": s.github_username,
+            "profile_url": s.profile_url,
+            "avatar_url": s.avatar_url,
+            "total_commits": commits,
+            "pull_requests": prs,
+            "issues": issues,
+            "reviews": reviews,
+            "repo_count": s.repo_count, # repo count is harder to filter by date without more data
+            "total_events": commits + prs + issues + reviews,
+            "activity_score": score,
+            "active_days": active_days,
+            "last_updated": s.last_updated
+        })
+    
+    # Sort results by score desc
+    results.sort(key=lambda x: x["activity_score"], reverse=True)
+    return results[skip:skip+limit]
 
 @app.get("/dashboard/stats")
-def dashboard_stats(db: Session = Depends(get_db)):
+def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
+    cutoff = get_period_cutoff(period)
+    
     total_students = db.query(Student).count()
-    # Active = has events in last 30 days (total_events > 0)
-    active_students = db.query(Student).filter(Student.total_events > 0).count()
+    # Active = has logs in the period
+    active_students = db.query(ActivityLog.student_id).filter(
+        ActivityLog.date_str >= cutoff
+    ).distinct().count()
     
-    top_student = db.query(Student).order_by(Student.activity_score.desc()).first()
+    # Aggregate all commits in period
+    total_commits = db.query(func.sum(ActivityLog.commits_count)).filter(
+        ActivityLog.date_str >= cutoff
+    ).scalar() or 0
     
+    # Top student in period
+    top_data = db.query(
+        ActivityLog.student_id,
+        func.sum(ActivityLog.commits_count*2 + ActivityLog.pr_count*3 + 1).label("score")
+    ).filter(
+        ActivityLog.date_str >= cutoff
+    ).group_by(ActivityLog.student_id).order_by(func.sum(ActivityLog.commits_count*2 + ActivityLog.pr_count*3 + 1).desc()).first()
+    
+    top_student_name = "None"
+    if top_data:
+        ts = db.query(Student).filter(Student.id == top_data.student_id).first()
+        if ts:
+            top_student_name = ts.name
+
     return {
         "total_students": total_students,
         "active_students": active_students,
-        "top_contributor": top_student.name if top_student else "None",
+        "top_contributor": top_student_name,
+        "total_commits": total_commits,
         "github_token_configured": bool(tracker_service.token)
     }
 
