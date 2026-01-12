@@ -124,12 +124,20 @@ const ClassroomDetail = () => {
                         <span className="stat-value">{assignments.length}</span>
                     </div>
                     <div className="card glass">
-                        <span className="stat-label">Avg. Completion</span>
-                        <span className="stat-value">84%</span>
+                        <span className="stat-label">Completion Rate</span>
+                        <span className="stat-value">
+                            {assignments.length > 0 && students.length > 0
+                                ? Math.round((students.filter(s => s.total_commits > 0).length / students.length) * 100)
+                                : 0}%
+                        </span>
                     </div>
                     <div className="card glass">
-                        <span className="stat-label">Avg. Score</span>
-                        <span className="stat-value">B+</span>
+                        <span className="stat-label">Class Activity</span>
+                        <span className="stat-value">
+                            {students.length > 0
+                                ? Math.round(students.reduce((acc, s) => acc + s.activity_score, 0) / students.length)
+                                : 0}
+                        </span>
                     </div>
                 </div>
             )}
@@ -257,18 +265,20 @@ const ClassroomDetail = () => {
                                                 </div>
                                             </td>
                                             <td>
-                                                <span className="badge badge-success">Submitted</span>
+                                                <span className={`badge badge-${s.total_commits > 0 ? 'success' : 'warning'}`}>
+                                                    {s.total_commits > 0 ? 'Active' : 'No Activity'}
+                                                </span>
                                             </td>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                     <div style={{ width: '100px', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${(s.activity_score % 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
+                                                        <div style={{ width: `${Math.min(s.activity_score, 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
                                                     </div>
-                                                    <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score % 100}/100</span>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score}</span>
                                                 </div>
                                             </td>
                                             <td>-</td>
-                                            <td style={{ fontWeight: 800 }}>{s.activity_score % 100}</td>
+                                            <td style={{ fontWeight: 800 }}>{s.activity_score}</td>
                                             <td>
                                                 <button className="btn btn-secondary glass" style={{ padding: '0.4rem' }}>Review Code</button>
                                             </td>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Search, Users, ExternalLink, RefreshCw, Filter } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -8,11 +9,16 @@ const StudentsPage = () => {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [period, setPeriod] = useState('monthly');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const period = searchParams.get('period') || 'monthly';
 
     useEffect(() => {
         fetchStudents();
     }, [period]);
+
+    const setPeriod = (p) => {
+        setSearchParams({ period: p });
+    };
 
     const fetchStudents = async () => {
         setLoading(true);

@@ -114,12 +114,59 @@ def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
         ActivityLog.date_str >= cutoff
     ).scalar() or 0
     
+    # For "Graded Today", we can count submissions with a grade that were updated today
+    today_str = datetime.utcnow().strftime("%Y-%m-%d")
+    from database import Submission
+    graded_today = db.query(Submission).filter(
+        Submission.grade.isnot(None),
+        func.substr(Submission.submitted_at, 1, 10) == today_str
+    ).count()
+
     return {
         "total_students": total_students,
         "active_students": active_students,
         "total_commits": total_commits,
+        "graded_today": graded_today,
         "github_token_configured": bool(tracker_service.token)
     }
+
+@app.get("/dashboard/leaderboard")
+def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depends(get_db)):
+    from routers.students import get_period_cutoff
+    from database import Student, ActivityLog
+    from sqlalchemy import func
+    
+    cutoff = get_period_cutoff(period)
+    
+    query = db.query(
+        Student.id,
+        Student.name,
+        Student.github_username,
+        Student.avatar_url,
+        func.sum(ActivityLog.commits_count).label("commits"),
+        func.sum(ActivityLog.pr_count).label("prs"),
+        func.count(ActivityLog.id).label("active_days")
+    ).join(ActivityLog, Student.id == ActivityLog.student_id)\
+     .filter(ActivityLog.date_str >= cutoff)\
+     .group_by(Student.id)\
+     .order_by(func.sum(ActivityLog.commits_count).desc())\
+     .limit(limit).all()
+    
+    leaderboard = []
+    for r in query:
+        score = (r.commits * 2) + (r.prs * 3) + (r.active_days * 1)
+        leaderboard.append({
+            "id": r.id,
+            "name": r.name or r.github_username,
+            "github_username": r.github_username,
+            "avatar_url": r.avatar_url,
+            "commits": r.commits,
+            "prs": r.prs,
+            "score": score
+        })
+    
+    leaderboard.sort(key=lambda x: x["score"], reverse=True)
+    return leaderboard
 
 if __name__ == "__main__":
     import uvicorn
