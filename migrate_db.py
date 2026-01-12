@@ -8,13 +8,29 @@ def migrate():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
+    # Classrooms migrations
     try:
-        # Add is_archived to classrooms if missing
         cursor.execute("ALTER TABLE classrooms ADD COLUMN is_archived BOOLEAN DEFAULT 0")
         print("Added is_archived to classrooms")
     except sqlite3.OperationalError:
-        print("is_archived already exists or table missing")
+        pass
         
+    # Students migrations
+    cols_to_add = [
+        ("student_id", "VARCHAR"),
+        ("email", "VARCHAR"),
+        ("classroom_id", "INTEGER"),
+        ("enrollment_date", "DATETIME"),
+        ("status", "VARCHAR DEFAULT 'active'")
+    ]
+    
+    for col_name, col_type in cols_to_add:
+        try:
+            cursor.execute(f"ALTER TABLE students ADD COLUMN {col_name} {col_type}")
+            print(f"Added {col_name} to students")
+        except sqlite3.OperationalError:
+            print(f"{col_name} already exists in students")
+
     conn.commit()
     conn.close()
 

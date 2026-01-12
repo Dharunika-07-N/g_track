@@ -115,7 +115,7 @@ async def refresh_student(student_id: int, background_tasks: BackgroundTasks, db
     return {"message": "Update scheduled"}
 
 @router.post("/upload")
-async def upload_students(classroom_id: Optional[int] = None, background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = File(...), classroom_id: Optional[int] = None, db: Session = Depends(get_db)):
     if not file.filename.endswith(('.xlsx', '.xls', '.csv')): raise HTTPException(status_code=400, detail="Invalid file type")
     try:
         contents = await file.read()

@@ -12,8 +12,7 @@ import {
     CheckCircle2,
     XCircle,
     Clock,
-    History,
-    Download
+    History
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000';
@@ -226,7 +225,7 @@ const ClassroomDetail = () => {
             )}
 
             {selectedAssignment && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(10px)' }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
                     <div className="card glass" style={{ width: '90%', maxWidth: '1000px', height: '80vh', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                             <div>
@@ -262,7 +261,7 @@ const ClassroomDetail = () => {
                                             </td>
                                             <td>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <div style={{ width: '100px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+                                                    <div style={{ width: '100px', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
                                                         <div style={{ width: `${(s.activity_score % 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
                                                     </div>
                                                     <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score % 100}/100</span>

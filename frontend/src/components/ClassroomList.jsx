@@ -84,7 +84,7 @@ const ClassroomList = () => {
                     <div className="grid grid-3">
                         {classrooms.filter(c => c.is_archived).map(c => (
                             <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: 0.7 }}>
-                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
                                     <History size={24} />
                                 </div>
                                 <div>
@@ -104,7 +104,7 @@ const ClassroomList = () => {
             )}
 
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
                     <div className="card glass" style={{ width: '100%', maxWidth: '500px', padding: '2rem' }}>
                         <h2 style={{ marginBottom: '1.5rem' }}>Create New Classroom</h2>
                         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

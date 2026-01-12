@@ -21,9 +21,11 @@ const Sidebar = () => {
 
     return (
         <aside className="sidebar">
-            <div className="brand" style={{ color: '#fff' }}>
+            <div className="brand" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontWeight: 800 }}>
                 <Github size={32} color="var(--primary)" />
-                <span style={{ fontSize: '1.25rem' }}>Classroom<span style={{ color: 'var(--primary)' }}>Tracker</span></span>
+                <span style={{ fontSize: '1.25rem', color: '#0f172a' }}>
+                    Classroom<span style={{ color: 'var(--primary)' }}>Tracker</span>
+                </span>
             </div>
 
             <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>

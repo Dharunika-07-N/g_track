@@ -10,7 +10,7 @@ from typing import List, Optional
 import os
 
 # Import routers
-from routers import students, classrooms, assignments, submissions
+from routers import students, classrooms, assignments, submissions, analytics
 
 from services.tracker import tracker_service
 from contextlib import asynccontextmanager
@@ -102,6 +102,7 @@ def read_root():
 @app.get("/dashboard/stats")
 def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
     from routers.students import get_period_cutoff
+    from sqlalchemy import func
     cutoff = get_period_cutoff(period)
     
     total_students = db.query(Student).count()
@@ -119,8 +120,6 @@ def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
         "total_commits": total_commits,
         "github_token_configured": bool(tracker_service.token)
     }
-
-from sqlalchemy import func
 
 if __name__ == "__main__":
     import uvicorn

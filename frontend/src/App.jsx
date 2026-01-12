@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Sidebar from './components/Sidebar';
 import ClassroomList from './components/ClassroomList';
 import ClassroomDetail from './components/ClassroomDetail';
+import StudentsPage from './components/StudentsPage';
+import AssignmentsPage from './components/AssignmentsPage';
 import AnalyticsPage from './components/AnalyticsPage';
 import axios from 'axios';
 import {
@@ -68,7 +70,7 @@ const DashboardHome = () => {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {[1, 2, 3].map(i => (
-              <div key={i} style={{ display: 'flex', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem' }}>
+              <div key={i} style={{ display: 'flex', gap: '1rem', padding: '1rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '0.75rem' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Github size={20} />
                 </div>
@@ -90,7 +92,7 @@ const DashboardHome = () => {
               </div>
               <span className="badge badge-error">Critical</span>
             </div>
-            <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ padding: '1rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '0.75rem', display: 'flex', justifyContent: 'space-between' }}>
               <div>
                 <div style={{ fontWeight: 600 }}>Web Dev: Final Project</div>
                 <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>In 4 days</div>
@@ -113,8 +115,8 @@ function App() {
           <Route path="/" element={<DashboardHome />} />
           <Route path="/classrooms" element={<ClassroomList />} />
           <Route path="/classrooms/:id" element={<ClassroomDetail />} />
-          <Route path="/students" element={<div className="main-content"><h1>Students Global View</h1></div>} />
-          <Route path="/assignments" element={<div className="main-content"><h1>Assignments Global View</h1></div>} />
+          <Route path="/students" element={<StudentsPage />} />
+          <Route path="/assignments" element={<AssignmentsPage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
