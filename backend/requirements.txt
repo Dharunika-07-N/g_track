@@ -9,3 +9,4 @@ httpx
 pandas
 openpyxl
 python-multipart
+xlsxwriter

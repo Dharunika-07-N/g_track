@@ -147,4 +147,40 @@ class GitHubTracker:
                 }
             }
 
+    async def get_org_repos(self, org: str) -> List[Dict]:
+        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+            resp = await client.get(f"{self.base_url}/orgs/{org}/repos")
+            if resp.status_code == 200:
+                return resp.json()
+            return []
+
+    async def get_repo_workflows(self, owner: str, repo: str) -> List[Dict]:
+        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+            resp = await client.get(f"{self.base_url}/repos/{owner}/{repo}/actions/workflows")
+            if resp.status_code == 200:
+                return resp.json().get("workflows", [])
+            return []
+
+    async def get_workflow_runs(self, owner: str, repo: str) -> List[Dict]:
+        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+            resp = await client.get(f"{self.base_url}/repos/{owner}/{repo}/actions/runs")
+            if resp.status_code == 200:
+                return resp.json().get("workflow_runs", [])
+            return []
+
+    async def setup_webhook(self, owner: str, repo: str, callback_url: str):
+        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+            data = {
+                "name": "web",
+                "active": True,
+                "events": ["push", "workflow_run"],
+                "config": {
+                    "url": callback_url,
+                    "content_type": "json",
+                    "insecure_ssl": "0"
+                }
+            }
+            resp = await client.post(f"{self.base_url}/repos/{owner}/{repo}/hooks", json=data)
+            return resp.status_code == 201
+
 tracker_service = GitHubTracker()
