@@ -40,6 +40,8 @@ class Classroom(Base):
     subject_code = Column(String)
     faculty_name = Column(String)
     faculty_email = Column(String)
+    department = Column(String, nullable=True)
+    batch = Column(String, nullable=True)
     
     is_archived = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -172,6 +174,22 @@ class ActivityLog(Base):
     student = relationship("Student", back_populates="logs")
     
     __table_args__ = (UniqueConstraint('student_id', 'date_str', name='_student_date_uc'),)
+
+class SemesterArchive(Base):
+    __tablename__ = "semester_archives"
+
+    id = Column(Integer, primary_key=True, index=True)
+    department = Column(String)
+    batch = Column(String)
+    semester = Column(String)
+    start_date = Column(String)
+    end_date = Column(String)
+    title = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    snapshot_data = Column(String) # JSON string of metrics
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint('department', 'batch', 'semester', name='_dept_batch_sem_uc'),)
 
 def init_db():
     Base.metadata.create_all(bind=engine)

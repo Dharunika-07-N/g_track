@@ -44,6 +44,39 @@ def migrate():
     except sqlite3.OperationalError:
         print("Column 'response_link' already exists")
 
+    # 4. Update Classrooms table for department and batch
+    print("Migrating Classrooms table (Dept/Batch)...")
+    try:
+        cursor.execute("ALTER TABLE classrooms ADD COLUMN department TEXT")
+    except sqlite3.OperationalError:
+        print("Column 'department' already exists")
+    
+    try:
+        cursor.execute("ALTER TABLE classrooms ADD COLUMN batch TEXT")
+    except sqlite3.OperationalError:
+        print("Column 'batch' already exists")
+
+    # 5. Create Semester Archives table
+    print("Creating semester_archives table...")
+    try:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS semester_archives (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                department TEXT,
+                batch TEXT,
+                semester TEXT,
+                start_date TEXT,
+                end_date TEXT,
+                title TEXT,
+                notes TEXT,
+                snapshot_data TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(department, batch, semester)
+            )
+        """)
+    except sqlite3.OperationalError as e:
+        print(f"Error creating table: {e}")
+
     conn.commit()
     conn.close()
     print("Migration complete.")

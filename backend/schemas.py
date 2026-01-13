@@ -24,6 +24,8 @@ class ClassroomBase(BaseModel):
     subject_code: Optional[str] = None
     faculty_name: Optional[str] = None
     faculty_email: Optional[str] = None
+    department: Optional[str] = None
+    batch: Optional[str] = None
     is_archived: bool = False
 
 class ClassroomCreate(ClassroomBase):
@@ -136,6 +138,25 @@ class FeedbackRead(FeedbackBase):
     id: int
     submission_id: int
     instructor_id: int
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+class SemesterArchiveBase(BaseModel):
+    department: str
+    batch: str
+    semester: str
+    start_date: str
+    end_date: str
+    title: Optional[str] = None
+    notes: Optional[str] = None
+
+class SemesterArchiveCreate(SemesterArchiveBase):
+    pass
+
+class SemesterArchiveRead(SemesterArchiveBase):
+    id: int
+    snapshot_data: str # JSON string
     created_at: datetime
     class Config:
         from_attributes = True

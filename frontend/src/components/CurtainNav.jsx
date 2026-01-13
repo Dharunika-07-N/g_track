@@ -8,7 +8,8 @@ import {
     Award,
     Menu,
     X,
-    Radar
+    Radar,
+    History
 } from 'lucide-react';
 
 const CurtainNav = () => {
@@ -20,7 +21,7 @@ const CurtainNav = () => {
         { icon: <BookOpen />, label: 'Classrooms', path: '/classrooms' },
         { icon: <Users />, label: 'Students', path: '/students' },
         { icon: <Award />, label: 'Assignments', path: '/assignments' },
-        { icon: <BarChart3 />, label: 'Analytics', path: '/analytics' },
+        { icon: <History />, label: 'History', path: '/analytics' },
     ];
 
     const toggleMenu = () => setIsOpen(!isOpen);

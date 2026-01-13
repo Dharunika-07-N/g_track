@@ -16,7 +16,9 @@ const ClassroomList = () => {
         year: new Date().getFullYear().toString(),
         academic_year: '1',
         faculty_name: '',
-        faculty_email: ''
+        faculty_email: '',
+        department: '',
+        batch: ''
     });
     const [showArchived, setShowArchived] = useState(false);
 
@@ -51,7 +53,9 @@ const ClassroomList = () => {
                 year: new Date().getFullYear().toString(),
                 academic_year: '1',
                 faculty_name: '',
-                faculty_email: ''
+                faculty_email: '',
+                department: '',
+                batch: ''
             });
             fetchClassrooms();
         } catch (err) {
@@ -180,6 +184,30 @@ const ClassroomList = () => {
                             </div>
                             <div className="grid grid-2" style={{ gap: '1rem' }}>
                                 <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Department</label>
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        value={newClass.department}
+                                        onChange={e => setNewClass({ ...newClass, department: e.target.value })}
+                                        placeholder="e.g. CSE"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Batch</label>
+                                    <input
+                                        type="text"
+                                        className="input"
+                                        value={newClass.batch}
+                                        onChange={e => setNewClass({ ...newClass, batch: e.target.value })}
+                                        placeholder="e.g. 2024-2028"
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-2" style={{ gap: '1rem' }}>
+                                <div>
                                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Semester</label>
                                     <select
                                         className="input"
@@ -190,7 +218,7 @@ const ClassroomList = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Batch / Calendar Year</label>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Year</label>
                                     <input
                                         type="text"
                                         className="input"
@@ -205,7 +233,7 @@ const ClassroomList = () => {
                                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Faculty Name</label>
                                     <input
                                         type="text"
-                                        class="input"
+                                        className="input"
                                         value={newClass.faculty_name}
                                         onChange={e => setNewClass({ ...newClass, faculty_name: e.target.value })}
                                         required
@@ -215,7 +243,7 @@ const ClassroomList = () => {
                                     <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Faculty Email</label>
                                     <input
                                         type="email"
-                                        class="input"
+                                        className="input"
                                         value={newClass.faculty_email}
                                         onChange={e => setNewClass({ ...newClass, faculty_email: e.target.value })}
                                         required
