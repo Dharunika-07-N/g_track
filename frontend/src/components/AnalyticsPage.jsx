@@ -199,10 +199,16 @@ const AnalyticsPage = () => {
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }} className="text-gradient">History</h1>
                     <p style={{ color: 'var(--text-muted)' }}>Administrative Data Archival & Historical Records</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowArchiveModal(true)}>
-                    <History size={20} />
-                    Archive Semester Data
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className="btn btn-secondary" onClick={() => window.open(`${API_BASE}/analytics/export/csv`, '_blank')}>
+                        <Download size={20} />
+                        Export Report
+                    </button>
+                    <button className="btn btn-primary" onClick={() => setShowArchiveModal(true)}>
+                        <History size={20} />
+                        Archive Semester Data
+                    </button>
+                </div>
             </header>
 
             {/* Existing Archives List / Hierarchy View */}

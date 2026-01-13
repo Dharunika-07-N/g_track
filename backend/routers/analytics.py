@@ -18,53 +18,68 @@ def get_db():
 
 @router.get("/export/csv")
 def export_full_history(classroom_id: int = None, db: Session = Depends(get_db)):
-    # Join Students, Logs, Submissions, Assignments
-    query = db.query(
-        Student.name.label("student_name"),
-        Student.github_username,
-        ActivityLog.date_str,
-        ActivityLog.commits_count,
-        ActivityLog.pr_count,
-        ActivityLog.issue_count,
-        ActivityLog.review_count
-    ).join(ActivityLog, Student.id == ActivityLog.student_id)
-    
-    if classroom_id:
-        query = query.filter(Student.classroom_id == classroom_id)
+    try:
+        # Join Students, Logs, Submissions, Assignments
+        query = db.query(
+            Student.name.label("student_name"),
+            Student.github_username,
+            ActivityLog.date_str,
+            ActivityLog.commits_count,
+            ActivityLog.pr_count,
+            ActivityLog.issue_count,
+            ActivityLog.review_count
+        ).join(ActivityLog, Student.id == ActivityLog.student_id, isouter=True)
         
-    df_activity = pd.DataFrame([dict(r._asdict()) for r in query.all()])
-    
-    # Also get submissions
-    sub_query = db.query(
-        Student.name.label("student_name"),
-        Assignment.title.label("assignment_title"),
-        Submission.status,
-        Submission.grade,
-        Submission.autograde_score,
-        Submission.manual_score,
-        Submission.submitted_at
-    ).join(Submission, Student.id == Submission.student_id)\
-     .join(Assignment, Submission.assignment_id == Assignment.id)
-     
-    if classroom_id:
-        sub_query = sub_query.filter(Student.classroom_id == classroom_id)
+        if classroom_id:
+            query = query.filter(Student.classroom_id == classroom_id)
         
-    df_submissions = pd.DataFrame([dict(r._asdict()) for r in sub_query.all()])
-    
-    # Combine into an Excel file with multiple sheets
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        if not df_activity.empty:
-            df_activity.to_excel(writer, sheet_name='Activity History', index=False)
-        if not df_submissions.empty:
-            df_submissions.to_excel(writer, sheet_name='Assignment Submissions', index=False)
+        activity_results = query.all()
+        df_activity = pd.DataFrame([dict(r._asdict()) for r in activity_results]) if activity_results else pd.DataFrame()
+        
+        # Also get submissions
+        sub_query = db.query(
+            Student.name.label("student_name"),
+            Assignment.title.label("assignment_title"),
+            Submission.status,
+            Submission.grade,
+            Submission.autograde_score,
+            Submission.manual_score,
+            Submission.submitted_at
+        ).join(Submission, Student.id == Submission.student_id, isouter=True)\
+         .join(Assignment, Submission.assignment_id == Assignment.id, isouter=True)
+         
+        if classroom_id:
+            sub_query = sub_query.filter(Student.classroom_id == classroom_id)
+        
+        submission_results = sub_query.all()
+        df_submissions = pd.DataFrame([dict(r._asdict()) for r in submission_results]) if submission_results else pd.DataFrame()
+        
+        # Combine into an Excel file with multiple sheets
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            if not df_activity.empty:
+                df_activity.to_excel(writer, sheet_name='Activity History', index=False)
+            else:
+                # Create empty sheet with headers
+                pd.DataFrame(columns=['student_name', 'github_username', 'date_str', 'commits_count', 'pr_count', 'issue_count', 'review_count']).to_excel(writer, sheet_name='Activity History', index=False)
             
-    output.seek(0)
-    
-    headers = {
-        'Content-Disposition': 'attachment; filename="classroom_history_report.xlsx"'
-    }
-    return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            if not df_submissions.empty:
+                df_submissions.to_excel(writer, sheet_name='Assignment Submissions', index=False)
+            else:
+                # Create empty sheet with headers
+                pd.DataFrame(columns=['student_name', 'assignment_title', 'status', 'grade', 'autograde_score', 'manual_score', 'submitted_at']).to_excel(writer, sheet_name='Assignment Submissions', index=False)
+                
+        output.seek(0)
+        
+        headers = {
+            'Content-Disposition': 'attachment; filename="classroom_history_report.xlsx"'
+        }
+        return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    except Exception as e:
+        print(f"Export error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
 @router.get("/summary")
 def get_global_summary(db: Session = Depends(get_db)):
@@ -98,12 +113,7 @@ def preview_archive_data(
     db: Session = Depends(get_db)
 ):
     # Logic to count data based on Dept, Batch (Classroom filters) and Date Range
-    
-    # 1. Find Classrooms matching Dept & Batch
-    # Note: Since Dept/Batch are new, we might strictly filter or loose filter.
-    # For now, let's assuming strict filter if data exists, otherwise maybe all? 
-    # The requirement implies specific segmentation.
-    
+    # Filter classrooms by department and batch
     classrooms = db.query(Classroom).filter(
         Classroom.department == department,
         Classroom.batch == batch
@@ -111,137 +121,127 @@ def preview_archive_data(
     
     classroom_ids = [c.id for c in classrooms]
     
-    # If no classrooms found, maybe return 0 or try to find by string matching?
-    # Let's stick to strict relation for correctness.
+    # Count students in these classrooms
+    student_count = db.query(Student).filter(Student.classroom_id.in_(classroom_ids)).count() if classroom_ids else 0
     
-    # 2. Students in those classrooms
-    students = db.query(Student).filter(Student.classroom_id.in_(classroom_ids)).all()
-    student_ids = [s.id for s in students]
+    # Count assignments in these classrooms (within date range if possible)
+    assignment_count = db.query(Assignment).filter(Assignment.classroom_id.in_(classroom_ids)).count() if classroom_ids else 0
     
-    # 3. Filter data by date range
-    # ActivityLogs
-    commits = db.query(func.sum(ActivityLog.commits_count)).filter(
+    # Count classrooms
+    classroom_count = len(classrooms)
+    
+    # Count commits from activity logs (filter by date_str range)
+    students_in_classrooms = db.query(Student.id).filter(Student.classroom_id.in_(classroom_ids)).all() if classroom_ids else []
+    student_ids = [s.id for s in students_in_classrooms]
+    
+    commit_count = db.query(func.sum(ActivityLog.commits_count)).filter(
         ActivityLog.student_id.in_(student_ids),
         ActivityLog.date_str >= start_date,
         ActivityLog.date_str <= end_date
-    ).scalar() or 0
+    ).scalar() or 0 if student_ids else 0
     
-    # Assignments created in range in those classrooms
-    assignments_count = db.query(Assignment).filter(
-        Assignment.classroom_id.in_(classroom_ids),
-        Assignment.created_at >= start_date,
-        Assignment.created_at <= end_date
-    ).count()
-    
-    # Classrooms created (maybe just count the matched ones created in range? or all matched?)
-    # "Classrooms created" usually implies created_at
-    classrooms_count = db.query(Classroom).filter(
-        Classroom.id.in_(classroom_ids),
-        Classroom.created_at >= start_date,
-        Classroom.created_at <= end_date
-    ).count()
-    
-    # Submissions/Projects (Repos)
-    # Projects: distinct repos in submissions or maybe student repo_count?
-    # Let's count submissions in range
-    submissions_count = db.query(Submission).filter(
-        Submission.student_id.in_(student_ids),
-        Submission.submitted_at >= start_date,
-        Submission.submitted_at <= end_date
-    ).count()
+    # Count projects (unique repos from activity logs)
+    project_count = db.query(func.count(func.distinct(ActivityLog.student_id))).filter(
+        ActivityLog.student_id.in_(student_ids),
+        ActivityLog.date_str >= start_date,
+        ActivityLog.date_str <= end_date
+    ).scalar() or 0 if student_ids else 0
     
     return {
-        "student_count": len(students),
-        "assignment_count": assignments_count,
-        "classroom_count": classrooms_count,
-        "commit_count": commits,
-        "project_count": submissions_count # Using submissions as proxy for projects for now
+        "student_count": student_count,
+        "assignment_count": assignment_count,
+        "classroom_count": classroom_count,
+        "commit_count": commit_count,
+        "project_count": project_count
     }
 
-from schemas import SemesterArchiveCreate, SemesterArchiveRead
-from database import SemesterArchive
-
-@router.post("/archive", response_model=SemesterArchiveRead)
-def create_archive(data: SemesterArchiveCreate, db: Session = Depends(get_db)):
-    # Check if exists (handling via UniqueConstraint usually raises generic db error, better check manually)
-    existing = db.query(SemesterArchive).filter(
-        SemesterArchive.department == data.department,
-        SemesterArchive.batch == data.batch,
-        SemesterArchive.semester == data.semester
-    ).first()
+@router.post("/archive")
+def create_archive(
+    archive_data: dict,
+    db: Session = Depends(get_db)
+):
+    from database import SemesterArchive
+    from datetime import datetime
     
-    # Calculate snapshot data again to store it
-    # Re-use logic from preview (simplified)
+    # Extract data from request
+    department = archive_data.get("department")
+    batch = archive_data.get("batch")
+    semester = archive_data.get("semester")
+    start_date = archive_data.get("start_date")
+    end_date = archive_data.get("end_date")
+    title = archive_data.get("title", "")
+    notes = archive_data.get("notes", "")
+    
+    # Get preview data (snapshot)
     classrooms = db.query(Classroom).filter(
-        Classroom.department == data.department,
-        Classroom.batch == data.batch
+        Classroom.department == department,
+        Classroom.batch == batch
     ).all()
-    c_ids = [c.id for c in classrooms]
-    s_ids = [s.id for s in db.query(Student).filter(Student.classroom_id.in_(c_ids)).all()]
     
-    commits = db.query(func.sum(ActivityLog.commits_count)).filter(
-        ActivityLog.student_id.in_(s_ids),
-        ActivityLog.date_str >= data.start_date,
-        ActivityLog.date_str <= data.end_date
-    ).scalar() or 0
+    classroom_ids = [c.id for c in classrooms]
     
-    assignments = db.query(Assignment).filter(
-        Assignment.classroom_id.in_(c_ids),
-        Assignment.created_at >= data.start_date,
-        Assignment.created_at <= data.end_date
-    ).count()
+    student_count = db.query(Student).filter(Student.classroom_id.in_(classroom_ids)).count() if classroom_ids else 0
+    assignment_count = db.query(Assignment).filter(Assignment.classroom_id.in_(classroom_ids)).count() if classroom_ids else 0
+    classroom_count = len(classrooms)
     
-    classrooms_cnt = db.query(Classroom).filter(
-        Classroom.id.in_(c_ids),
-        Classroom.created_at >= data.start_date,
-        Classroom.created_at <= data.end_date
-    ).count()
+    students_in_classrooms = db.query(Student.id).filter(Student.classroom_id.in_(classroom_ids)).all() if classroom_ids else []
+    student_ids = [s.id for s in students_in_classrooms]
     
-    project_cnt = db.query(Submission).filter(
-        Submission.student_id.in_(s_ids),
-        Submission.submitted_at >= data.start_date,
-        Submission.submitted_at <= data.end_date
-    ).count()
+    commit_count = db.query(func.sum(ActivityLog.commits_count)).filter(
+        ActivityLog.student_id.in_(student_ids),
+        ActivityLog.date_str >= start_date,
+        ActivityLog.date_str <= end_date
+    ).scalar() or 0 if student_ids else 0
+    
+    project_count = db.query(func.count(func.distinct(ActivityLog.student_id))).filter(
+        ActivityLog.student_id.in_(student_ids),
+        ActivityLog.date_str >= start_date,
+        ActivityLog.date_str <= end_date
+    ).scalar() or 0 if student_ids else 0
     
     snapshot = {
-        "students": len(s_ids),
-        "assignments": assignments,
-        "classrooms": classrooms_cnt,
-        "commits": commits,
-        "projects": project_cnt
+        "students": student_count,
+        "assignments": assignment_count,
+        "classrooms": classroom_count,
+        "commits": commit_count,
+        "projects": project_count
     }
     
+    # Check if archive already exists
+    existing = db.query(SemesterArchive).filter(
+        SemesterArchive.department == department,
+        SemesterArchive.batch == batch,
+        SemesterArchive.semester == semester
+    ).first()
+    
     if existing:
-        # Overwrite
-        existing.start_date = data.start_date
-        existing.end_date = data.end_date
-        existing.title = data.title
-        existing.notes = data.notes
+        # Update existing
+        existing.start_date = start_date
+        existing.end_date = end_date
+        existing.title = title
+        existing.notes = notes
         existing.snapshot_data = json.dumps(snapshot)
-        db.commit()
-        db.refresh(existing)
-        return existing
+        existing.created_at = datetime.utcnow()
     else:
+        # Create new
         new_archive = SemesterArchive(
-            department=data.department,
-            batch=data.batch,
-            semester=data.semester,
-            start_date=data.start_date,
-            end_date=data.end_date,
-            title=data.title,
-            notes=data.notes,
+            department=department,
+            batch=batch,
+            semester=semester,
+            start_date=start_date,
+            end_date=end_date,
+            title=title,
+            notes=notes,
             snapshot_data=json.dumps(snapshot)
         )
         db.add(new_archive)
-        db.commit()
-        db.refresh(new_archive)
-        return new_archive
+    
+    db.commit()
+    
+    return {"message": "Archive created successfully", "snapshot": snapshot}
 
 @router.get("/archives")
-def get_archives(department: str = None, batch: str = None, db: Session = Depends(get_db)):
-    query = db.query(SemesterArchive)
-    if department:
-        query = query.filter(SemesterArchive.department == department)
-    if batch:
-        query = query.filter(SemesterArchive.batch == batch)
-    return query.all()
+def get_all_archives(db: Session = Depends(get_db)):
+    from database import SemesterArchive
+    archives = db.query(SemesterArchive).order_by(SemesterArchive.created_at.desc()).all()
+    return archives
