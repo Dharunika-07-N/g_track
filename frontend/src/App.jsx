@@ -29,6 +29,7 @@ const DashboardHome = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [dailyStats, setDailyStats] = useState(null);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -61,6 +62,31 @@ const DashboardHome = () => {
     fetchDailyStats();
   }, [selectedDate]);
 
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setUploading(true);
+    try {
+      await axios.post(`${API_BASE}/students/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("Students imported successfully");
+      // Refresh stats after upload
+      const statsRes = await axios.get(`${API_BASE}/dashboard/stats?period=${period}`);
+      setStats(statsRes.data);
+    } catch (err) {
+      console.error(err);
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+      e.target.value = null; // reset input
+    }
+  };
+
   return (
     <div className="main-content">
       <header className="header" style={{ borderBottom: 'none' }}>
@@ -68,24 +94,50 @@ const DashboardHome = () => {
           <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Command Center</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div className="glass" style={{ display: 'flex', padding: '0.25rem', borderRadius: '0.75rem' }}>
-            {['weekly', 'monthly', 'yearly', 'all'].map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`btn ${period === p ? 'btn-primary' : ''}`}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div className="glass" style={{ display: 'flex', padding: '0.25rem', borderRadius: '0.75rem' }}>
+              {['weekly', 'monthly', 'yearly', 'all'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`btn ${period === p ? 'btn-primary' : ''}`}
+                  style={{
+                    padding: '0.4rem 0.8rem',
+                    background: period === p ? 'var(--primary)' : 'transparent',
+                    border: 'none',
+                    textTransform: 'capitalize',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
+            {/* Quick Import Button */}
+            <div style={{ position: 'relative' }}>
+              <input
+                type="file"
+                id="dashboard-excel-upload"
+                accept=".xlsx, .xls, .csv"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+              <label
+                htmlFor="dashboard-excel-upload"
+                className="btn btn-secondary glass"
                 style={{
-                  padding: '0.4rem 0.8rem',
-                  background: period === p ? 'var(--primary)' : 'transparent',
-                  border: 'none',
-                  textTransform: 'capitalize',
-                  fontSize: '0.75rem'
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.75rem',
+                  padding: '0.4rem 0.8rem'
                 }}
               >
-                {p}
-              </button>
-            ))}
+                {uploading ? 'Importing...' : 'Import Excel'}
+              </label>
+            </div>
           </div>
+
           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
             <div
               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
