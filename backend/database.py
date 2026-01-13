@@ -32,8 +32,15 @@ class Classroom(Base):
     description = Column(String)
     org_id = Column(String)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    term = Column(String)
+    
+    # Replaced 'term' with semester and year, though keeping term potentially for backward compat or ignoring it
+    term = Column(String, nullable=True) 
+    semester = Column(String)
+    year = Column(String)
     subject_code = Column(String)
+    faculty_name = Column(String)
+    faculty_email = Column(String)
+    
     is_archived = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -53,7 +60,7 @@ class Student(Base):
     avatar_url = Column(String)
     classroom_id = Column(Integer, ForeignKey("classrooms.id"), nullable=True)
     enrollment_date = Column(DateTime, default=datetime.utcnow)
-    status = Column(String, default="active") # active, inactive, dropped
+    status = Column(String, default="active") # active, inactive, dropped, archived
     last_updated = Column(DateTime, default=datetime.utcnow)
     
     # Metrics (These will now be 'Current/Overall' cached stats)
@@ -87,6 +94,7 @@ class Assignment(Base):
     late_policy = Column(String)
     repo_prefix = Column(String)
     starter_code_url = Column(String)
+    response_link = Column(String) # For collecting answers/responses
     config = Column(String) # JSON string for additional config
     created_at = Column(DateTime, default=datetime.utcnow)
 

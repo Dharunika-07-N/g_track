@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import SessionLocal, Classroom, User
 from schemas import ClassroomCreate, ClassroomRead
@@ -59,3 +59,17 @@ def archive_classroom(classroom_id: int, db: Session = Depends(get_db)):
     db.query(Student).filter(Student.classroom_id == classroom_id).update({"status": "inactive"})
     db.commit()
     return {"message": "Classroom archived successfully"}
+
+@router.post("/{classroom_id}/sync")
+async def sync_classroom(classroom_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from database import Student
+    from routers.students import update_student_data
+    
+    classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
+    if not classroom: raise HTTPException(status_code=404, detail="Classroom not found")
+    
+    students = db.query(Student).filter(Student.classroom_id == classroom_id).all()
+    for student in students:
+        background_tasks.add_task(update_student_data, student.id)
+        
+    return {"message": f"Sync started for {len(students)} students"}

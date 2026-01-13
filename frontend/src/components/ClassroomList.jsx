@@ -8,7 +8,17 @@ const API_BASE = 'http://localhost:8000';
 const ClassroomList = () => {
     const [classrooms, setClassrooms] = useState([]);
     const [showModal, setShowModal] = useState(false);
-    const [newClass, setNewClass] = useState({ name: '', description: '', subject_code: '', term: '' });
+    const [newClass, setNewClass] = useState({
+        name: '',
+        description: '',
+        subject_code: '',
+        semester: '1',
+        year: new Date().getFullYear().toString(),
+        academic_year: '1',
+        faculty_name: '',
+        faculty_email: ''
+    });
+    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         fetchClassrooms();
@@ -28,7 +38,21 @@ const ClassroomList = () => {
         try {
             await axios.post(`${API_BASE}/classrooms/`, newClass);
             setShowModal(false);
-            setNewClass({ name: '', description: '', subject_code: '', term: '' });
+            await axios.post(`${API_BASE}/classrooms/`, {
+                ...newClass,
+                term: `Year ${newClass.academic_year} | Sem ${newClass.semester} - ${newClass.year}`
+            });
+            setShowModal(false);
+            setNewClass({
+                name: '',
+                description: '',
+                subject_code: '',
+                semester: '1',
+                year: new Date().getFullYear().toString(),
+                academic_year: '1',
+                faculty_name: '',
+                faculty_email: ''
+            });
             fetchClassrooms();
         } catch (err) {
             console.error(err);
@@ -42,21 +66,34 @@ const ClassroomList = () => {
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>My Classrooms</h1>
                     <p style={{ color: 'var(--text-muted)' }}>Manage your courses and student repositories</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                    <Plus size={20} />
-                    Create Classroom
-                </button>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    <button className={`btn ${showArchived ? 'btn-primary' : 'btn-secondary glass'}`} onClick={() => setShowArchived(!showArchived)}>
+                        <History size={20} />
+                        {showArchived ? 'Hide Archived' : 'Archived Registry'}
+                    </button>
+                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                        <Plus size={20} />
+                        Create Classroom
+                    </button>
+                </div>
             </header>
 
             <div className="grid grid-3">
-                {classrooms.filter(c => !c.is_archived).map(c => (
-                    <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-                            <BookOpen size={24} />
+                {classrooms.filter(c => showArchived ? c.is_archived : !c.is_archived).map(c => (
+                    <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: c.is_archived ? 0.8 : 1 }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: c.is_archived ? '#f1f5f9' : 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.is_archived ? 'var(--text-muted)' : 'var(--primary)' }}>
+                            {c.is_archived ? <History size={24} /> : <BookOpen size={24} />}
                         </div>
                         <div>
                             <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{c.name}</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{c.subject_code} • {c.term}</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                                {c.subject_code} • {c.term || `${c.semester || ''} ${c.year || ''}`}
+                            </p>
+                            {c.faculty_name && (
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                                    {c.faculty_name}
+                                </p>
+                            )}
                         </div>
                         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', lineClamp: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {c.description || 'No description provided.'}
@@ -67,7 +104,7 @@ const ClassroomList = () => {
                                     <Users size={14} /> {c.students?.length || 0}
                                 </span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <Clock size={14} /> {c.assignments?.length || 0} Assignments
+                                    <Clock size={14} /> {c.assignments?.length || 0} Assgn.
                                 </span>
                             </div>
                             <Link to={`/classrooms/${c.id}`} className="btn btn-secondary glass" style={{ padding: '0.5rem' }}>
@@ -131,13 +168,57 @@ const ClassroomList = () => {
                                     />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Term</label>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Academic Year</label>
+                                    <select
+                                        className="input"
+                                        value={newClass.academic_year}
+                                        onChange={e => setNewClass({ ...newClass, academic_year: e.target.value })}
+                                    >
+                                        {[1, 2, 3, 4].map(y => <option key={y} value={y}>Year {y}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-2" style={{ gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Semester</label>
+                                    <select
+                                        className="input"
+                                        value={newClass.semester}
+                                        onChange={e => setNewClass({ ...newClass, semester: e.target.value })}
+                                    >
+                                        {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <option key={s} value={s}>Semester {s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Batch / Calendar Year</label>
                                     <input
                                         type="text"
                                         className="input"
-                                        value={newClass.term}
-                                        onChange={e => setNewClass({ ...newClass, term: e.target.value })}
-                                        placeholder="Spring 2026"
+                                        value={newClass.year}
+                                        onChange={e => setNewClass({ ...newClass, year: e.target.value })}
+                                        placeholder="2026"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-2" style={{ gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Faculty Name</label>
+                                    <input
+                                        type="text"
+                                        class="input"
+                                        value={newClass.faculty_name}
+                                        onChange={e => setNewClass({ ...newClass, faculty_name: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Faculty Email</label>
+                                    <input
+                                        type="email"
+                                        class="input"
+                                        value={newClass.faculty_email}
+                                        onChange={e => setNewClass({ ...newClass, faculty_email: e.target.value })}
+                                        required
                                     />
                                 </div>
                             </div>

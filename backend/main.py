@@ -126,8 +126,30 @@ def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
         "total_students": total_students,
         "active_students": active_students,
         "total_commits": total_commits,
-        "graded_today": graded_today,
         "github_token_configured": bool(tracker_service.token)
+    }
+
+@app.get("/dashboard/daily-stats")
+def daily_stats(date: str, db: Session = Depends(get_db)):
+    # Expected format YYYY-MM-DD
+    # Returns stats for that specific day
+    from database import ActivityLog, Student, Assignment
+    from sqlalchemy import func
+    
+    # Activity logs for this date
+    logs = db.query(ActivityLog).filter(ActivityLog.date_str == date).all()
+    
+    active_count = len(set(log.student_id for log in logs))
+    commits_count = sum(log.commits_count for log in logs)
+    
+    # Find assignments created or due on this date (simple check)
+    assignments_due = db.query(Assignment).filter(func.date(Assignment.deadline) == date).count()
+    
+    return {
+        "date": date,
+        "active_students": active_count,
+        "commits": commits_count,
+        "assignments_due": assignments_due
     }
 
 @app.get("/dashboard/leaderboard")
@@ -167,6 +189,17 @@ def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depen
     
     leaderboard.sort(key=lambda x: x["score"], reverse=True)
     return leaderboard
+
+@app.get("/dashboard/upcoming")
+def upcoming_deadlines(limit: int = 5, db: Session = Depends(get_db)):
+    from database import Assignment
+    from datetime import datetime
+    
+    now = datetime.utcnow()
+    # Assignments due in future, sorted by closest deadline
+    upcoming = db.query(Assignment).filter(Assignment.deadline > now).order_by(Assignment.deadline.asc()).limit(limit).all()
+    
+    return upcoming
 
 if __name__ == "__main__":
     import uvicorn

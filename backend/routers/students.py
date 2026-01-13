@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFi
 from sqlalchemy.orm import Session
 from database import SessionLocal, Student, ActivityLog, Classroom
 from schemas import StudentCreate, StudentRead
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import List, Optional
 from services.tracker import tracker_service
@@ -149,6 +150,16 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
 async def delete_student(student_id: int, db: Session = Depends(get_db)):
     student = db.query(Student).filter(Student.id == student_id).first()
     if not student: raise HTTPException(status_code=404, detail="Student not found")
-    db.delete(student)
+    # Archive instead of delete
+    student.status = "archived"
     db.commit()
-    return {"message": "Student removed"}
+    return {"message": "Student archived"}
+
+class BulkDeleteRequest(BaseModel):
+    student_ids: List[int]
+
+@router.post("/bulk-delete")
+async def bulk_delete_students(request: BulkDeleteRequest, db: Session = Depends(get_db)):
+    db.query(Student).filter(Student.id.in_(request.student_ids)).update({Student.status: "archived"}, synchronize_session=False)
+    db.commit()
+    return {"message": "Selected students archived"}

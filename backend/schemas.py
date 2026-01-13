@@ -19,7 +19,11 @@ class ClassroomBase(BaseModel):
     description: Optional[str] = None
     org_id: Optional[str] = None
     term: Optional[str] = None
+    semester: Optional[str] = None
+    year: Optional[str] = None
     subject_code: Optional[str] = None
+    faculty_name: Optional[str] = None
+    faculty_email: Optional[str] = None
     is_archived: bool = False
 
 class ClassroomCreate(ClassroomBase):
@@ -42,6 +46,7 @@ class StudentBase(BaseModel):
 
 class StudentCreate(StudentBase):
     classroom_id: Optional[int] = None
+    profile_url: Optional[str] = None
 
 class StudentRead(StudentBase):
     id: int
@@ -89,6 +94,7 @@ class AssignmentBase(BaseModel):
     late_policy: Optional[str] = None
     repo_prefix: Optional[str] = None
     starter_code_url: Optional[str] = None
+    response_link: Optional[str] = None
     config: Optional[str] = None
 
 class AssignmentCreate(AssignmentBase):

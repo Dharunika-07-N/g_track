@@ -12,7 +12,9 @@ import {
     CheckCircle2,
     XCircle,
     Clock,
-    History
+    History,
+    AlertCircle,
+    Mail
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000';
@@ -59,6 +61,16 @@ const ClassroomDetail = () => {
         }
     };
 
+    const handleSync = async () => {
+        try {
+            await axios.post(`${API_BASE}/classrooms/${id}/sync`);
+            alert("Sync started for all students. Data will update in the background.");
+        } catch (err) {
+            console.error(err);
+            alert("Failed to start sync");
+        }
+    };
+
     if (loading) return <div className="main-content">Loading...</div>;
 
     return (
@@ -80,14 +92,11 @@ const ClassroomDetail = () => {
                             Archive
                         </button>
                     )}
-                    <button className="btn btn-secondary glass">
+                    <button className="btn btn-secondary glass" onClick={handleSync}>
                         <RefreshCcw size={18} />
                         Sync All
                     </button>
-                    <button className="btn btn-primary">
-                        <Plus size={18} />
-                        New Assignment
-                    </button>
+                    {/* Removed New Assignment Button as requested */}
                 </div>
             </header>
 
@@ -114,31 +123,50 @@ const ClassroomDetail = () => {
             </div>
 
             {activeTab === 'overview' && (
-                <div className="grid grid-4" style={{ marginBottom: '2rem' }}>
-                    <div className="card glass">
-                        <span className="stat-label">Total Students</span>
-                        <span className="stat-value">{students.length}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                    <div className="grid grid-4">
+                        <div className="card glass">
+                            <span className="stat-label">Total Students</span>
+                            <span className="stat-value">{students.length}</span>
+                        </div>
+                        <div className="card glass">
+                            <span className="stat-label">Active Assignments</span>
+                            <span className="stat-value">{assignments.length}</span>
+                        </div>
+                        <div className="card glass">
+                            <span className="stat-label">Completion Rate</span>
+                            <span className="stat-value">
+                                {assignments.length > 0 && students.length > 0
+                                    ? Math.round((students.filter(s => s.total_commits > 0).length / students.length) * 100)
+                                    : 0}%
+                            </span>
+                        </div>
+                        <div className="card glass">
+                            <span className="stat-label">Class Activity</span>
+                            <span className="stat-value">
+                                {students.length > 0
+                                    ? Math.round(students.reduce((acc, s) => acc + s.activity_score, 0) / students.length)
+                                    : 0}
+                            </span>
+                        </div>
                     </div>
-                    <div className="card glass">
-                        <span className="stat-label">Active Assignments</span>
-                        <span className="stat-value">{assignments.length}</span>
-                    </div>
-                    <div className="card glass">
-                        <span className="stat-label">Completion Rate</span>
-                        <span className="stat-value">
-                            {assignments.length > 0 && students.length > 0
-                                ? Math.round((students.filter(s => s.total_commits > 0).length / students.length) * 100)
-                                : 0}%
-                        </span>
-                    </div>
-                    <div className="card glass">
-                        <span className="stat-label">Class Activity</span>
-                        <span className="stat-value">
-                            {students.length > 0
-                                ? Math.round(students.reduce((acc, s) => acc + s.activity_score, 0) / students.length)
-                                : 0}
-                        </span>
-                    </div>
+
+                    {assignments.filter(a => new Date(a.deadline) > new Date() && new Date(a.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)).length > 0 && (
+                        <div className="card glass" style={{ borderLeft: '4px solid rgb(244, 63, 94)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                                <AlertCircle size={20} color="rgb(244, 63, 94)" />
+                                <h3 style={{ fontSize: '1.1rem', color: 'rgb(244, 63, 94)' }}>Deadlines Approaching</h3>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {assignments.filter(a => new Date(a.deadline) > new Date() && new Date(a.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)).map(a => (
+                                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                        <span style={{ fontWeight: 600 }}>{a.title}</span>
+                                        <span style={{ color: 'var(--text-muted)' }}>Due: {new Date(a.deadline).toLocaleString()}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -158,8 +186,7 @@ const ClassroomDetail = () => {
                             <tr>
                                 <th style={{ textAlign: 'left' }}>Student</th>
                                 <th>GitHub</th>
-                                <th>Status</th>
-                                <th>Score</th>
+                                <th>Email</th>
                                 <th>Last Active</th>
                                 <th>Actions</th>
                             </tr>
@@ -169,7 +196,7 @@ const ClassroomDetail = () => {
                                 <tr key={s.id}>
                                     <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <img src={s.avatar_url} className="avatar" alt="" />
+                                            <img src={s.avatar_url || 'https://github.com/identicons/jasonlong.png'} className="avatar" alt="" style={{ width: '32px' }} />
                                             <div>
                                                 <div style={{ fontWeight: 600 }}>{s.name}</div>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.student_id}</div>
@@ -181,19 +208,17 @@ const ClassroomDetail = () => {
                                             @{s.github_username}
                                         </a>
                                     </td>
-                                    <td>
-                                        <span className={`badge badge-${s.status === 'active' ? 'success' : 'warning'}`}>
-                                            {s.status}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div style={{ fontWeight: 700 }}>{s.activity_score}</div>
-                                    </td>
+                                    <td>{s.email || '-'}</td>
                                     <td>{new Date(s.last_updated).toLocaleDateString()}</td>
                                     <td>
-                                        <button className="btn btn-secondary glass" style={{ padding: '0.5rem' }}>
-                                            View Stats
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <button className="btn btn-secondary glass" style={{ padding: '0.5rem' }} title="View Stats">
+                                                <BarChart size={16} />
+                                            </button>
+                                            <button className="btn btn-secondary glass" style={{ padding: '0.5rem' }} title="Send Message" onClick={() => window.location.href = `mailto:${s.email}`}>
+                                                <Mail size={16} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

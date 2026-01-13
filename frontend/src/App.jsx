@@ -26,6 +26,9 @@ const DashboardHome = () => {
   const [stats, setStats] = useState({ total_students: 0, active_students: 0, total_commits: 0, graded_today: 0 });
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dailyStats, setDailyStats] = useState(null);
+  const [showCalendar, setShowCalendar] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -45,6 +48,18 @@ const DashboardHome = () => {
     };
     fetchData();
   }, [period]);
+
+  useEffect(() => {
+    const fetchDailyStats = async () => {
+      try {
+        const resp = await axios.get(`${API_BASE}/dashboard/daily-stats?date=${selectedDate}`);
+        setDailyStats(resp.data);
+      } catch (err) {
+        console.error("Error fetching daily stats:", err);
+      }
+    };
+    fetchDailyStats();
+  }, [selectedDate]);
 
   return (
     <div className="main-content">
@@ -71,9 +86,29 @@ const DashboardHome = () => {
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
-            <Calendar size={18} />
-            <span style={{ fontSize: '0.875rem' }}>{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)' }}>
+            <div
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              onClick={() => setShowCalendar(!showCalendar)}
+            >
+              <Calendar size={18} />
+              <span style={{ fontSize: '0.875rem' }}>
+                {new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+            {showCalendar && (
+              <div className="card glass" style={{ position: 'absolute', top: '100%', right: 0, padding: '1rem', zIndex: 10, marginTop: '0.5rem' }}>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => {
+                    setSelectedDate(e.target.value);
+                    setShowCalendar(false);
+                  }}
+                  className="input"
+                />
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -102,10 +137,16 @@ const DashboardHome = () => {
           <span className="stat-value">{stats.total_commits}</span>
           <span className="stat-label">Total Commits</span>
         </div>
+        {/* Removed Graded Today box as requested */}
         <div className="card glass stat-card">
-          <BookOpen size={24} color="var(--accent)" style={{ marginBottom: '1rem' }} />
-          <span className="stat-value">{stats.graded_today}</span>
-          <span className="stat-label">Graded Today</span>
+          <Clock size={24} color="var(--accent)" style={{ marginBottom: '1rem' }} />
+          <span className="stat-value">
+            {dailyStats ? dailyStats.commits : '-'}
+          </span>
+          <span className="stat-label">Commits on {new Date(selectedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+          <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', color: 'var(--text-muted)' }}>
+            {dailyStats ? `${dailyStats.active_students} Students Active` : 'Loading...'}
+          </div>
         </div>
       </div>
 
@@ -146,27 +187,39 @@ const DashboardHome = () => {
           </div>
         </div>
         <div className="card glass">
-          <h3 style={{ marginBottom: '1.5rem' }}>System Health</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ padding: '1rem', background: '#ecfdf5', border: '1px solid #10b981', borderRadius: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>GitHub API Connection</div>
-                <div style={{ fontSize: '0.875rem', color: '#047857' }}>{stats.github_token_configured ? 'Active and Healthy' : 'Token Not Configured'}</div>
-              </div>
-              <span className={`badge ${stats.github_token_configured ? 'badge-success' : 'badge-error'}`}>
-                {stats.github_token_configured ? 'Online' : 'Offline'}
-              </span>
-            </div>
-            <div style={{ padding: '1rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>Background Sync</div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Next update in ~45 minutes</div>
-              </div>
-              <span className="badge badge-info">Scheduled</span>
-            </div>
-          </div>
+          <h3 style={{ marginBottom: '1.5rem' }}>Upcoming Deadlines</h3>
+          <UpcomingDeadlinesList />
         </div>
       </div>
+    </div>
+  );
+};
+
+const UpcomingDeadlinesList = () => {
+  const [deadlines, setDeadlines] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/dashboard/upcoming`).then(res => setDeadlines(res.data)).catch(console.error);
+  }, []);
+
+  if (deadlines.length === 0) {
+    return <div style={{ color: 'var(--text-muted)' }}>No upcoming assignments.</div>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {deadlines.map(a => (
+        <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: '0.5rem', cursor: 'pointer' }} onClick={() => navigate(`/classrooms/${a.classroom_id}`)}>
+          <div>
+            <div style={{ fontWeight: 600 }}>{a.title}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Due: {new Date(a.deadline).toLocaleString()}</div>
+          </div>
+          <span className="badge badge-warning">
+            {Math.ceil((new Date(a.deadline) - new Date()) / (1000 * 60 * 60 * 24))} days left
+          </span>
+        </div>
+      ))}
     </div>
   );
 };
