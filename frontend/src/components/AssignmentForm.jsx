@@ -14,6 +14,7 @@ const AssignmentForm = ({ classroomId, onSuccess, onCancel }) => {
         late_policy: 'None',
         repo_prefix: '',
         starter_code_url: '',
+        response_link: '',
         classroom_id: parseInt(classroomId)
     });
 
@@ -135,6 +136,15 @@ const AssignmentForm = ({ classroomId, onSuccess, onCancel }) => {
                                 value={formData.starter_code_url}
                                 onChange={e => setFormData({ ...formData, starter_code_url: e.target.value })}
                                 placeholder="https://github.com/org/template"
+                            />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Google Form URL (Responses)</label>
+                            <input
+                                className="input"
+                                value={formData.response_link}
+                                onChange={e => setFormData({ ...formData, response_link: e.target.value })}
+                                placeholder="https://docs.google.com/forms/..."
                             />
                         </div>
                     </div>

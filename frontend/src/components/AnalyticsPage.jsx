@@ -26,6 +26,7 @@ const AnalyticsPage = () => {
     const [loading, setLoading] = useState(true);
     const [showArchiveModal, setShowArchiveModal] = useState(false);
     const [archives, setArchives] = useState([]);
+    const [archivedClassrooms, setArchivedClassrooms] = useState([]);
 
     // Modal Form State
     const [formData, setFormData] = useState({
@@ -51,6 +52,7 @@ const AnalyticsPage = () => {
     useEffect(() => {
         fetchSummary();
         fetchArchives();
+        fetchArchivedClassrooms();
     }, []);
 
     const fetchSummary = async () => {
@@ -70,6 +72,15 @@ const AnalyticsPage = () => {
             setArchives(resp.data);
         } catch (err) {
             console.error("Failed to fetch archives", err);
+        }
+    };
+
+    const fetchArchivedClassrooms = async () => {
+        try {
+            const resp = await axios.get(`${API_BASE}/classrooms/`);
+            setArchivedClassrooms(resp.data.filter(c => c.is_archived));
+        } catch (err) {
+            console.error("Failed to fetch archived classrooms", err);
         }
     };
 
@@ -265,6 +276,49 @@ const AnalyticsPage = () => {
                                 </div>
                             );
                         })}
+                    </div>
+                )}
+            </div>
+
+            {/* Archived Classrooms */}
+            <div style={{ marginBottom: '3rem' }}>
+                <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.25rem', fontWeight: 700 }}>
+                    <div style={{ background: 'var(--secondary)', padding: '0.5rem', borderRadius: '8px', color: 'white', display: 'flex' }}><FileSpreadsheet size={20} /></div>
+                    Archived Classrooms
+                </h3>
+                {archivedClassrooms.length === 0 ? (
+                    <div className="glass-morphism" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <p>No individual classrooms have been archived yet.</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-3">
+                        {archivedClassrooms.map(c => (
+                            <div key={c.id} className="archive-card" style={{ opacity: 0.9 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                                            {c.subject_code}
+                                        </div>
+                                        <h4 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-main)' }}>{c.name}</h4>
+                                    </div>
+                                    <div style={{ background: '#f1f5f9', padding: '0.25rem 0.75rem', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                        Archived
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                                    {c.term || `${c.semester || ''} ${c.year || ''}`}
+                                </div>
+                                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        className="btn btn-secondary glass"
+                                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+                                        onClick={() => window.location.href = `/classrooms/${c.id}`}
+                                    >
+                                        View Data <ChevronRight size={14} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
             </div>

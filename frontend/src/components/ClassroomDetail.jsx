@@ -16,6 +16,7 @@ import {
     AlertCircle,
     Mail
 } from 'lucide-react';
+import AssignmentForm from './AssignmentForm';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -26,7 +27,10 @@ const ClassroomDetail = () => {
     const [students, setStudents] = useState([]);
     const [assignments, setAssignments] = useState([]);
     const [selectedAssignment, setSelectedAssignment] = useState(null);
+    const [selectedAssignmentSubmissions, setSelectedAssignmentSubmissions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
     useEffect(() => {
         fetchClassroomData();
@@ -71,6 +75,19 @@ const ClassroomDetail = () => {
         }
     };
 
+    const handleTrackProgress = async (asgn) => {
+        setSelectedAssignment(asgn);
+        setLoadingSubmissions(true);
+        try {
+            const resp = await axios.get(`${API_BASE}/submissions/assignment/${asgn.id}`);
+            setSelectedAssignmentSubmissions(resp.data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingSubmissions(false);
+        }
+    };
+
     if (loading) return <div className="main-content">Loading...</div>;
 
     return (
@@ -96,7 +113,12 @@ const ClassroomDetail = () => {
                         <RefreshCcw size={18} />
                         Sync All
                     </button>
-                    {/* Removed New Assignment Button as requested */}
+                    {!classroom?.is_archived && (
+                        <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+                            <Plus size={18} />
+                            Create Assignment
+                        </button>
+                    )}
                 </div>
             </header>
 
@@ -247,7 +269,7 @@ const ClassroomDetail = () => {
                                 <button
                                     className="btn btn-primary"
                                     style={{ padding: '0.5rem 1rem' }}
-                                    onClick={() => setSelectedAssignment(a)}
+                                    onClick={() => handleTrackProgress(a)}
                                 >
                                     Track Progress
                                 </button>
@@ -265,53 +287,81 @@ const ClassroomDetail = () => {
                                 <h2 style={{ fontSize: '1.5rem' }}>{selectedAssignment.title} - Progress</h2>
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{students.length} Students Assigned</div>
                             </div>
-                            <button className="btn btn-secondary glass" onClick={() => setSelectedAssignment(null)}><XCircle size={24} /></button>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                {selectedAssignment.response_link && (
+                                    <button className="btn btn-secondary glass" onClick={() => window.open(selectedAssignment.response_link, '_blank')}>
+                                        <BookOpen size={18} /> View Form/Responses
+                                    </button>
+                                )}
+                                <button className="btn btn-secondary glass" onClick={() => setSelectedAssignment(null)}><XCircle size={24} /></button>
+                            </div>
                         </div>
 
-                        <div className="table-container" style={{ flex: 1 }}>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Student</th>
-                                        <th>Status</th>
-                                        <th>Autograde</th>
-                                        <th>Manual</th>
-                                        <th>Total</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {students.map(s => (
-                                        <tr key={s.id}>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <img src={s.avatar_url} className="avatar" style={{ width: '2rem', height: '2rem' }} alt="" />
-                                                    <span style={{ fontWeight: 600 }}>{s.name}</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span className={`badge badge-${s.total_commits > 0 ? 'success' : 'warning'}`}>
-                                                    {s.total_commits > 0 ? 'Active' : 'No Activity'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <div style={{ width: '100px', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${Math.min(s.activity_score, 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
-                                                    </div>
-                                                    <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score}</span>
-                                                </div>
-                                            </td>
-                                            <td>-</td>
-                                            <td style={{ fontWeight: 800 }}>{s.activity_score}</td>
-                                            <td>
-                                                <button className="btn btn-secondary glass" style={{ padding: '0.4rem' }}>Review Code</button>
-                                            </td>
+                        {loadingSubmissions ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading submissions...</div>
+                        ) : (
+                            <div className="table-container" style={{ flex: 1, overflowY: 'auto' }}>
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th style={{ textAlign: 'left' }}>Student</th>
+                                            <th>Submission Status</th>
+                                            <th>Commits</th>
+                                            <th>Activity Score</th>
+                                            <th>Submission Time</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {students.map(s => {
+                                            const sub = selectedAssignmentSubmissions.find(sub => sub.student_id === s.id);
+                                            const isCompleted = sub?.status === 'submitted' || sub?.status === 'graded' || s.total_commits > 0;
+                                            return (
+                                                <tr key={s.id}>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                            <img src={s.avatar_url} className="avatar" style={{ width: '2rem', height: '2rem' }} alt="" />
+                                                            <span style={{ fontWeight: 600 }}>{s.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <span className={`badge badge-${isCompleted ? 'success' : 'warning'}`}>
+                                                            {isCompleted ? (sub?.status || 'Active') : 'No Activity'}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>{s.total_commits}</td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <div style={{ width: '100px', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                                                <div style={{ width: `${Math.min(s.activity_score, 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
+                                                            </div>
+                                                            <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                                                        {sub ? new Date(sub.submitted_at).toLocaleString() : '-'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {showCreateModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
+                    <div style={{ width: '90%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <AssignmentForm
+                            classroomId={id}
+                            onSuccess={() => {
+                                setShowCreateModal(false);
+                                fetchClassroomData();
+                            }}
+                            onCancel={() => setShowCreateModal(false)}
+                        />
                     </div>
                 </div>
             )}

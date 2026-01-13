@@ -20,7 +20,6 @@ const ClassroomList = () => {
         department: '',
         batch: ''
     });
-    const [showArchived, setShowArchived] = useState(false);
 
     useEffect(() => {
         fetchClassrooms();
@@ -63,6 +62,17 @@ const ClassroomList = () => {
         }
     };
 
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this classroom? It will be moved to the history page.")) return;
+        try {
+            await axios.post(`${API_BASE}/classrooms/${id}/archive`);
+            fetchClassrooms();
+        } catch (err) {
+            console.error(err);
+            alert("Delete failed");
+        }
+    };
+
     return (
         <div className="main-content">
             <header className="header" style={{ borderBottom: 'none' }}>
@@ -71,10 +81,6 @@ const ClassroomList = () => {
                     <p style={{ color: 'var(--text-muted)' }}>Manage your courses and student repositories</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className={`btn ${showArchived ? 'btn-primary' : 'btn-secondary glass'}`} onClick={() => setShowArchived(!showArchived)}>
-                        <History size={20} />
-                        {showArchived ? 'Hide Archived' : 'Archived Registry'}
-                    </button>
                     <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                         <Plus size={20} />
                         Create Classroom
@@ -83,10 +89,20 @@ const ClassroomList = () => {
             </header>
 
             <div className="grid grid-3">
-                {classrooms.filter(c => showArchived ? c.is_archived : !c.is_archived).map(c => (
-                    <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: c.is_archived ? 0.8 : 1 }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: c.is_archived ? '#f1f5f9' : 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.is_archived ? 'var(--text-muted)' : 'var(--primary)' }}>
-                            {c.is_archived ? <History size={24} /> : <BookOpen size={24} />}
+                {classrooms.filter(c => !c.is_archived).map(c => (
+                    <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+                                <BookOpen size={24} />
+                            </div>
+                            <button
+                                className="btn-icon"
+                                style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', border: 'none', borderRadius: '8px', padding: '0.5rem', cursor: 'pointer' }}
+                                onClick={() => handleDelete(c.id)}
+                                title="Delete Classroom"
+                            >
+                                <Plus size={18} style={{ transform: 'rotate(45deg)' }} />
+                            </button>
                         </div>
                         <div>
                             <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{c.name}</h3>
@@ -118,31 +134,6 @@ const ClassroomList = () => {
                     </div>
                 ))}
             </div>
-
-            {classrooms.some(c => c.is_archived) && (
-                <>
-                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4rem', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>Archived Registries</h2>
-                    <div className="grid grid-3">
-                        {classrooms.filter(c => c.is_archived).map(c => (
-                            <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: 0.7 }}>
-                                <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                    <History size={24} />
-                                </div>
-                                <div>
-                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{c.name}</h3>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{c.subject_code} • {c.term}</p>
-                                </div>
-                                <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <span className="badge badge-silver">Archived</span>
-                                    <Link to={`/classrooms/${c.id}`} className="btn btn-secondary glass" style={{ padding: '0.5rem' }}>
-                                        <ArrowRight size={18} />
-                                    </Link>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </>
-            )}
 
             {showModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
