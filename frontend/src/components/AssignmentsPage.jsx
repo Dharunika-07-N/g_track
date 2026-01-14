@@ -17,7 +17,8 @@ const AssignmentsPage = () => {
         deadline: '',
         type: 'individual',
         points: 100,
-        response_link: ''
+        response_link: '',
+        google_sheet_url: ''
     });
     const [selectedAssignment, setSelectedAssignment] = useState(null);
     const [selectedAssignmentStudents, setSelectedAssignmentStudents] = useState([]);
@@ -59,7 +60,7 @@ const AssignmentsPage = () => {
         try {
             await axios.post(`${API_BASE}/assignments/`, newAsgn);
             setShowModal(false);
-            setNewAsgn({ title: '', description: '', classroom_id: '', deadline: '', type: 'individual', points: 100, response_link: '' });
+            setNewAsgn({ title: '', description: '', classroom_id: '', deadline: '', type: 'individual', points: 100, response_link: '', google_sheet_url: '' });
             fetchData();
         } catch (err) {
             console.error(err);
@@ -78,6 +79,35 @@ const AssignmentsPage = () => {
             setSelectedAssignmentSubmissions(subResp.data);
         } catch (err) {
             console.error(err);
+        } finally {
+            setLoadingStudents(false);
+        }
+    };
+
+    const handleAnalyze = async (assignmentId) => {
+        setLoadingStudents(true);
+        try {
+            const resp = await axios.post(`${API_BASE}/assignments/${assignmentId}/analyze`);
+            alert(`Analysis complete! \nCompleted: ${resp.data.summary.completed}\nPending: ${resp.data.summary.pending}`);
+            // Refresh data
+            handleTrackProgress(selectedAssignment);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Failed to analyze submissions");
+        } finally {
+            setLoadingStudents(false);
+        }
+    };
+
+    const handleSendReminders = async (assignmentId) => {
+        if (!confirm("Are you sure you want to send reminder emails to all pending students?")) return;
+        setLoadingStudents(true);
+        try {
+            const resp = await axios.post(`${API_BASE}/assignments/${assignmentId}/send-reminders`);
+            alert(resp.data.message);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Failed to send reminders");
         } finally {
             setLoadingStudents(false);
         }
@@ -204,6 +234,19 @@ const AssignmentsPage = () => {
                                 />
                             </div>
                             <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Google Sheets Response URL (for Analyzer)</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    value={newAsgn.google_sheet_url}
+                                    onChange={e => setNewAsgn({ ...newAsgn, google_sheet_url: e.target.value })}
+                                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                                />
+                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                                    Share the sheet with your service account email for analysis.
+                                </p>
+                            </div>
+                            <div>
                                 <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem' }}>Description</label>
                                 <textarea
                                     className="input"
@@ -232,18 +275,56 @@ const AssignmentsPage = () => {
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                {selectedAssignment.google_sheet_url && (
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => handleAnalyze(selectedAssignment.id)}
+                                        disabled={loadingStudents}
+                                    >
+                                        Analyze Submissions
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-secondary glass"
+                                    onClick={() => handleSendReminders(selectedAssignment.id)}
+                                    disabled={loadingStudents}
+                                    style={{ color: '#fbbf24', borderColor: '#fbbf24' }}
+                                >
+                                    Send Reminders
+                                </button>
                                 {selectedAssignment.response_link && (
                                     <button
                                         className="btn btn-secondary glass"
                                         onClick={() => window.open(selectedAssignment.response_link, '_blank')}
                                         title="Open Submission Form/Responses"
                                     >
-                                        <BookOpen size={18} /> View Form/Responses
+                                        <BookOpen size={18} /> View Form
                                     </button>
                                 )}
                                 <button className="btn btn-secondary glass" onClick={() => setSelectedAssignment(null)}><XCircle size={24} /></button>
                             </div>
                         </div>
+
+                        {!loadingStudents && (
+                            <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '12px' }}>
+                                <div style={{ textAlign: 'center', flex: 1 }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>
+                                        {selectedAssignmentSubmissions.filter(s => s.status !== 'pending').length}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Completed</div>
+                                </div>
+                                <div style={{ textAlign: 'center', flex: 1, borderLeft: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--warning)' }}>
+                                        {selectedAssignmentStudents.length - selectedAssignmentSubmissions.filter(s => s.status !== 'pending').length}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Pending</div>
+                                </div>
+                                <div style={{ textAlign: 'center', flex: 1 }}>
+                                    <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{selectedAssignmentStudents.length}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Students</div>
+                                </div>
+                            </div>
+                        )}
 
                         {loadingStudents ? (
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading student data...</div>

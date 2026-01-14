@@ -97,6 +97,7 @@ class Assignment(Base):
     repo_prefix = Column(String)
     starter_code_url = Column(String)
     response_link = Column(String) # For collecting answers/responses
+    google_sheet_url = Column(String) # For verifying responses
     config = Column(String) # JSON string for additional config
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -158,6 +159,17 @@ class Notification(Base):
     related_entity = Column(String) # "assignment:1", "submission:2"
     read_status = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class AssignmentReminderLog(Base):
+    __tablename__ = "assignment_reminder_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"))
+    student_id = Column(Integer, ForeignKey("students.id"))
+    sent_at = Column(DateTime, default=datetime.utcnow)
+
+    assignment = relationship("Assignment")
+    student = relationship("Student")
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"

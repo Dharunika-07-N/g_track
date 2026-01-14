@@ -97,6 +97,7 @@ class AssignmentBase(BaseModel):
     repo_prefix: Optional[str] = None
     starter_code_url: Optional[str] = None
     response_link: Optional[str] = None
+    google_sheet_url: Optional[str] = None
     config: Optional[str] = None
 
 class AssignmentCreate(AssignmentBase):
