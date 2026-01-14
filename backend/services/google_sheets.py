@@ -6,7 +6,12 @@ import re
 
 class GoogleSheetsService:
     def __init__(self):
-        self.credentials_path = os.getenv("GOOGLE_SHEETS_CREDENTIALS_PATH", "backend/service_account.json")
+        # Base directory of the project (one level up from services/ folder)
+        self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.credentials_path = os.getenv(
+            "GOOGLE_SHEETS_CREDENTIALS_PATH", 
+            os.path.join(self.base_dir, "service_account.json")
+        )
         self.scopes = [
             'https://www.googleapis.com/auth/spreadsheets.readonly',
             'https://www.googleapis.com/auth/drive.readonly'

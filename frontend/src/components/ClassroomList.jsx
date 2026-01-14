@@ -37,8 +37,6 @@ const ClassroomList = () => {
     const handleCreate = async (e) => {
         e.preventDefault();
         try {
-            await axios.post(`${API_BASE}/classrooms/`, newClass);
-            setShowModal(false);
             await axios.post(`${API_BASE}/classrooms/`, {
                 ...newClass,
                 term: `Year ${newClass.academic_year} | Sem ${newClass.semester} - ${newClass.year}`
@@ -59,6 +57,7 @@ const ClassroomList = () => {
             fetchClassrooms();
         } catch (err) {
             console.error(err);
+            alert("Failed to create classroom. Please check the backend logs.");
         }
     };
 
