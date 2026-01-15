@@ -14,7 +14,8 @@ import {
     Clock,
     History,
     AlertCircle,
-    Mail
+    Mail,
+    BookOpen
 } from 'lucide-react';
 import AssignmentForm from './AssignmentForm';
 
@@ -85,6 +86,49 @@ const ClassroomDetail = () => {
             console.error(err);
         } finally {
             setLoadingSubmissions(false);
+        }
+    };
+
+    const handleAnalyze = async (assignmentId) => {
+        if (!confirm("Analyze responses from the linked Google Sheet? This will update student statuses.")) return;
+        setLoadingSubmissions(true);
+        try {
+            await axios.post(`${API_BASE}/assignments/${assignmentId}/analyze`);
+            const resp = await axios.get(`${API_BASE}/submissions/assignment/${assignmentId}`);
+            setSelectedAssignmentSubmissions(resp.data);
+            alert("Submissions analyzed and updated successfully.");
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Failed to analyze submissions");
+        } finally {
+            setLoadingSubmissions(false);
+        }
+    };
+
+    const handleSendIndividualReminder = async (studentId, studentEmail, studentName) => {
+        if (!studentEmail) {
+            alert("This student doesn't have an email address configured.");
+            return;
+        }
+        if (!confirm(`Send reminder to ${studentName} (${studentEmail})?`)) return;
+
+        try {
+            const resp = await axios.post(`${API_BASE}/assignments/${selectedAssignment.id}/send-reminder/${studentId}`);
+            alert(resp.data.message);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Failed to send reminder");
+        }
+    };
+
+    const handleSendBulkReminders = async (assignmentId) => {
+        if (!confirm("Send reminders to all students who haven't completed this assignment?")) return;
+        try {
+            const resp = await axios.post(`${API_BASE}/assignments/${assignmentId}/send-reminders`);
+            alert(resp.data.message);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to send reminders");
         }
     };
 
@@ -288,9 +332,25 @@ const ClassroomDetail = () => {
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{students.length} Students Assigned</div>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                {selectedAssignment.google_sheet_url && (
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={() => handleAnalyze(selectedAssignment.id)}
+                                        disabled={loadingSubmissions}
+                                    >
+                                        Analyze Submissions
+                                    </button>
+                                )}
+                                <button
+                                    className="btn btn-secondary glass"
+                                    style={{ color: '#fbbf24', borderColor: '#fbbf24' }}
+                                    onClick={() => handleSendBulkReminders(selectedAssignment.id)}
+                                >
+                                    Remind All Pending
+                                </button>
                                 {selectedAssignment.response_link && (
                                     <button className="btn btn-secondary glass" onClick={() => window.open(selectedAssignment.response_link, '_blank')}>
-                                        <BookOpen size={18} /> View Form/Responses
+                                        <BookOpen size={18} /> View Form
                                     </button>
                                 )}
                                 <button className="btn btn-secondary glass" onClick={() => setSelectedAssignment(null)}><XCircle size={24} /></button>
@@ -305,40 +365,81 @@ const ClassroomDetail = () => {
                                     <thead>
                                         <tr>
                                             <th style={{ textAlign: 'left' }}>Student</th>
-                                            <th>Submission Status</th>
+                                            <th>Status</th>
                                             <th>Commits</th>
                                             <th>Activity Score</th>
                                             <th>Submission Time</th>
+                                            <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {students.map(s => {
                                             const sub = selectedAssignmentSubmissions.find(sub => sub.student_id === s.id);
-                                            const isCompleted = sub?.status === 'submitted' || sub?.status === 'graded' || s.total_commits > 0;
+                                            const isCompleted = sub?.status === 'submitted' || sub?.status === 'graded';
                                             return (
                                                 <tr key={s.id}>
                                                     <td>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                            <img src={s.avatar_url} className="avatar" style={{ width: '2rem', height: '2rem' }} alt="" />
-                                                            <span style={{ fontWeight: 600 }}>{s.name}</span>
+                                                            <div
+                                                                style={{
+                                                                    width: '2.5rem',
+                                                                    height: '2.5rem',
+                                                                    borderRadius: '50%',
+                                                                    background: 'var(--primary-glow)',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    justifyContent: 'center',
+                                                                    fontWeight: 700,
+                                                                    color: 'var(--primary)',
+                                                                    fontSize: '0.9rem'
+                                                                }}
+                                                            >
+                                                                {s.name ? s.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
+                                                            </div>
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{s.name || 'Unknown Student'}</div>
+                                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ID: {s.student_id || 'N/A'} • @{s.github_username}</div>
+                                                            </div>
                                                         </div>
                                                     </td>
-                                                    <td>
-                                                        <span className={`badge badge-${isCompleted ? 'success' : 'warning'}`}>
-                                                            {isCompleted ? (sub?.status || 'Active') : 'No Activity'}
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        <span
+                                                            className={`badge`}
+                                                            style={{
+                                                                background: isCompleted ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                                color: isCompleted ? '#10b981' : '#ef4444',
+                                                                border: `1px solid ${isCompleted ? '#10b981' : '#ef4444'}`,
+                                                                padding: '0.25rem 0.75rem',
+                                                                borderRadius: '20px',
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 700
+                                                            }}
+                                                        >
+                                                            {isCompleted ? 'Completed' : 'Not Completed'}
                                                         </span>
                                                     </td>
                                                     <td style={{ textAlign: 'center' }}>{s.total_commits}</td>
                                                     <td>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <div style={{ width: '100px', height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                                            <div style={{ width: '80px', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
                                                                 <div style={{ width: `${Math.min(s.activity_score, 100)}%`, height: '100%', background: 'var(--primary)' }}></div>
                                                             </div>
-                                                            <span style={{ fontSize: '0.875rem', fontWeight: 700 }}>{s.activity_score}</span>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>{s.activity_score}</span>
                                                         </div>
                                                     </td>
-                                                    <td style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                                                        {sub ? new Date(sub.submitted_at).toLocaleString() : '-'}
+                                                    <td style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                                                        {sub && sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : '-'}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }}>
+                                                        {!isCompleted && (
+                                                            <button
+                                                                className="btn btn-secondary glass"
+                                                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', color: '#fbbf24', borderColor: '#fbbf24' }}
+                                                                onClick={() => handleSendIndividualReminder(s.id, s.email, s.name)}
+                                                            >
+                                                                Send Reminder
+                                                            </button>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             );

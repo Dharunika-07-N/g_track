@@ -156,30 +156,26 @@ def send_assignment_reminders(assignment_id: int, db: Session = Depends(get_db))
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
-    # Find pending submissions
-    pending_submissions = db.query(Submission).filter(
-        Submission.assignment_id == assignment_id,
-        Submission.status == "pending"
-    ).all()
+    # Get all students in the classroom
+    students = db.query(Student).filter(Student.classroom_id == assignment.classroom_id).all()
     
     sent_count = 0
-    cooldown_hours = 24
     now = datetime.utcnow()
     
-    for sub in pending_submissions:
-        student = sub.student
-        if not student or not student.email:
+    for student in students:
+        if not student.email:
             continue
+            
+        # Check if they have a completed submission
+        submission = db.query(Submission).filter(
+            Submission.assignment_id == assignment_id,
+            Submission.student_id == student.id,
+            Submission.status.in_(["submitted", "graded"])
+        ).first()
         
-        # Check cooldown: only send if not notified in the last 24 hours
-        last_log = db.query(AssignmentReminderLog).filter(
-            AssignmentReminderLog.assignment_id == assignment_id,
-            AssignmentReminderLog.student_id == student.id
-        ).order_by(AssignmentReminderLog.sent_at.desc()).first()
-        
-        if last_log and (now - last_log.sent_at).total_seconds() < cooldown_hours * 3600:
-            continue
-        
+        if submission:
+            continue # Already completed
+            
         # Send reminder
         success = notification_service.send_assignment_reminder(
             student_name=student.name,
@@ -199,7 +195,44 @@ def send_assignment_reminders(assignment_id: int, db: Session = Depends(get_db))
             sent_count += 1
             
     db.commit()
+    return {"message": f"Reminders sent to {sent_count} pending students"}
+
+            
+    db.commit()
     return {"message": f"Reminders sent to {sent_count} students"}
+
+@router.post("/{assignment_id}/send-reminder/{student_id}")
+def send_individual_assignment_reminder(assignment_id: int, student_id: int, db: Session = Depends(get_db)):
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    if not student.email:
+        raise HTTPException(status_code=400, detail="Student has no email address")
+
+    success = notification_service.send_assignment_reminder(
+        student_name=student.name,
+        student_email=student.email,
+        assignment_title=assignment.title,
+        deadline=assignment.deadline
+    )
+    
+    if success:
+        now = datetime.utcnow()
+        log = AssignmentReminderLog(
+            assignment_id=assignment_id,
+            student_id=student.id,
+            sent_at=now
+        )
+        db.add(log)
+        db.commit()
+        return {"message": f"Reminder sent to {student.name}"}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to send email")
 
 @router.get("/{assignment_id}/status")
 def get_assignment_status(assignment_id: int, db: Session = Depends(get_db)):
