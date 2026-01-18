@@ -10,7 +10,7 @@ from typing import List, Optional
 import os
 
 # Import routers
-from routers import students, classrooms, assignments, submissions, analytics
+from routers import students, classrooms, assignments, submissions, analytics, hod, student_portal
 
 from services.tracker import tracker_service
 from contextlib import asynccontextmanager
@@ -62,6 +62,8 @@ app.include_router(classrooms.router)
 app.include_router(assignments.router)
 app.include_router(submissions.router)
 app.include_router(analytics.router)
+app.include_router(hod.router)
+app.include_router(student_portal.router)
 from routers import auth
 app.include_router(auth.router)
 
@@ -92,8 +94,9 @@ async def scheduled_update_all():
 def sync_scheduler_wrapper():
     try:
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        from services.reminders import check_and_send_reminders
         loop.run_until_complete(scheduled_update_all())
+        loop.run_until_complete(check_and_send_reminders())
         loop.close()
     except Exception as e:
         print(f"Error in sync_scheduler_wrapper: {e}")

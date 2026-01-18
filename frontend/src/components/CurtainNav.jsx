@@ -16,12 +16,16 @@ const CurtainNav = ({ onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
 
+    const userRole = localStorage.getItem('role') || 'student';
+
     const menuItems = [
         { icon: <LayoutDashboard />, label: 'Dashboard', path: '/' },
         { icon: <BookOpen />, label: 'Classrooms', path: '/classrooms' },
-        { icon: <Users />, label: 'Students', path: '/students' },
-        { icon: <Award />, label: 'Assignments', path: '/assignments' },
-        { icon: <History />, label: 'History', path: '/analytics' },
+        ...(userRole !== 'student' ? [
+            { icon: <Users />, label: 'Students', path: '/students' },
+            { icon: <Award />, label: 'Assignments', path: '/assignments' },
+            { icon: <History />, label: 'History', path: '/analytics' },
+        ] : []),
     ];
 
     const toggleMenu = () => setIsOpen(!isOpen);

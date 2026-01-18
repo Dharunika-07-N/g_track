@@ -17,69 +17,49 @@ def get_db():
         db.close()
 
 @router.get("/export/csv")
-def export_full_history(classroom_id: int = None, db: Session = Depends(get_db)):
+def export_full_history(classroom_id: int = None, status: str = None, db: Session = Depends(get_db)):
     try:
-        # Join Students, Logs, Submissions, Assignments
-        query = db.query(
-            Student.name.label("student_name"),
-            Student.github_username,
-            ActivityLog.date_str,
-            ActivityLog.commits_count,
-            ActivityLog.pr_count,
-            ActivityLog.issue_count,
-            ActivityLog.review_count
-        ).join(ActivityLog, Student.id == ActivityLog.student_id, isouter=True)
+        # Base Student Query
+        student_query = db.query(
+            Student.student_id.label("roll_no"),
+            Student.name,
+            Student.email,
+            Student.github_username
+        )
         
         if classroom_id:
-            query = query.filter(Student.classroom_id == classroom_id)
+            student_query = student_query.filter(Student.classroom_id == classroom_id)
         
-        activity_results = query.all()
-        df_activity = pd.DataFrame([dict(r._asdict()) for r in activity_results]) if activity_results else pd.DataFrame()
-        
-        # Also get submissions
-        sub_query = db.query(
-            Student.name.label("student_name"),
-            Assignment.title.label("assignment_title"),
-            Submission.status,
-            Submission.grade,
-            Submission.autograde_score,
-            Submission.manual_score,
-            Submission.submitted_at
-        ).join(Submission, Student.id == Submission.student_id, isouter=True)\
-         .join(Assignment, Submission.assignment_id == Assignment.id, isouter=True)
-         
-        if classroom_id:
-            sub_query = sub_query.filter(Student.classroom_id == classroom_id)
-        
-        submission_results = sub_query.all()
-        df_submissions = pd.DataFrame([dict(r._asdict()) for r in submission_results]) if submission_results else pd.DataFrame()
-        
-        # Combine into an Excel file with multiple sheets
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            if not df_activity.empty:
-                df_activity.to_excel(writer, sheet_name='Activity History', index=False)
-            else:
-                # Create empty sheet with headers
-                pd.DataFrame(columns=['student_name', 'github_username', 'date_str', 'commits_count', 'pr_count', 'issue_count', 'review_count']).to_excel(writer, sheet_name='Activity History', index=False)
+        # If status is provided, we filter by submission status for assignments
+        if status:
+            # This is more complex, let's get list of students first
+            students = student_query.all()
+            export_data = []
             
-            if not df_submissions.empty:
-                df_submissions.to_excel(writer, sheet_name='Assignment Submissions', index=False)
-            else:
-                # Create empty sheet with headers
-                pd.DataFrame(columns=['student_name', 'assignment_title', 'status', 'grade', 'autograde_score', 'manual_score', 'submitted_at']).to_excel(writer, sheet_name='Assignment Submissions', index=False)
+            for s in students:
+                # Check ALL assignments for this student
+                subs = db.query(Submission).filter(Submission.student_id == s.id).all()
+                combined_status = "completed" if all(sub.status in ["submitted", "graded"] for sub in subs) and subs else "incomplete"
                 
+                if status == "completed" and combined_status == "completed":
+                    export_data.append(s._asdict())
+                elif status == "incomplete" and combined_status == "incomplete":
+                    export_data.append(s._asdict())
+            
+            df = pd.DataFrame(export_data)
+        else:
+            activity_results = student_query.all()
+            df = pd.DataFrame([dict(r._asdict()) for r in activity_results]) if activity_results else pd.DataFrame()
+        
+        output = io.BytesIO()
+        df.to_excel(output, index=False)
         output.seek(0)
         
-        headers = {
-            'Content-Disposition': 'attachment; filename="classroom_history_report.xlsx"'
-        }
+        filename = f"{status or 'all'}_students_report.xlsx"
+        headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
-        print(f"Export error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/summary")
 def get_global_summary(db: Session = Depends(get_db)):

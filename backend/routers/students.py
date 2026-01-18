@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
-from database import SessionLocal, Student, ActivityLog, Classroom
+from database import SessionLocal, Student, ActivityLog, Classroom, User
 from schemas import StudentCreate, StudentRead
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import List, Optional
 from services.tracker import tracker_service
+from services.leetcode import leetcode_service
 from sqlalchemy import func
 import pandas as pd
 import io
@@ -24,6 +25,7 @@ async def update_student_data(student_id: int):
     try:
         student = db.query(Student).filter(Student.id == student_id).first()
         if not student: return
+        # GitHub Sync
         data = await tracker_service.analyze_user(student.github_username)
         if data:
             student.name = student.name or data["name"]
@@ -49,7 +51,16 @@ async def update_student_data(student_id: int):
             student.active_days = len(student.logs)
             student.last_updated = datetime.utcnow()
             student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
-            db.commit()
+        
+        # LeetCode Sync
+        user_record = db.query(User).filter(User.email == student.email).first()
+        if user_record and user_record.leetcode_username:
+            lc_stats = await leetcode_service.get_user_stats(user_record.leetcode_username)
+            if lc_stats:
+                student.leetcode_solved = lc_stats["total_solved"]
+                student.leetcode_rating = lc_stats["ranking"] or 0
+        
+        db.commit()
     finally:
         db.close()
 

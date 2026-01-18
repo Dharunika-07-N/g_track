@@ -25,6 +25,11 @@ class User(Base):
     student_id = Column(String, nullable=True)
     avatar_url = Column(String)
     access_token = Column(String)
+    phone = Column(String, nullable=True)
+    leetcode_username = Column(String, nullable=True)
+    hackerrank_username = Column(String, nullable=True)
+    password_reset_required = Column(Boolean, default=False)
+    import_batch_id = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     classrooms = relationship("Classroom", back_populates="owner")
@@ -82,6 +87,11 @@ class Student(Base):
     
     # Derived scores
     activity_score = Column(Integer, default=0)
+    
+    # Coding Platforms
+    leetcode_solved = Column(Integer, default=0)
+    leetcode_rating = Column(Integer, default=0)
+    hackerrank_score = Column(Integer, default=0)
 
     # Relationships
     classroom = relationship("Classroom", back_populates="students")
@@ -208,6 +218,18 @@ class SemesterArchive(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (UniqueConstraint('department', 'batch', 'semester', name='_dept_batch_sem_uc'),)
+
+class ImportLog(Base):
+    __tablename__ = "import_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    imported_by = Column(Integer, ForeignKey("users.id"))
+    import_type = Column(String) # student, faculty
+    file_name = Column(String)
+    total_rows = Column(Integer)
+    success_count = Column(Integer)
+    error_count = Column(Integer)
+    status = Column(String) # completed, failed
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
