@@ -82,7 +82,7 @@ export default function RegisterPage(props) {
 
   return (
     <div className="auth-container">
-      <div className="auth-card" style={{ maxWidth: '500px' }}>
+      <div className="auth-card">
         <div className="auth-header">
           <h1 className="auth-title">Create Account</h1>
           <p className="auth-subtitle">Join the GitHub Activity Tracker</p>
@@ -99,22 +99,21 @@ export default function RegisterPage(props) {
           {/* Role Selection */}
           <div className="auth-input-group">
             <label className="auth-label">I am a...</label>
-            <div className="role-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+            <div className="role-grid">
               {roles.map((role) => (
                 <div
                   key={role.id}
                   className={`role-card ${selectedRole === role.id ? 'selected' : ''}`}
                   onClick={() => handleRoleChange(role.id)}
-                  style={{ padding: '0.75rem', cursor: 'pointer' }}
                 >
-                  <role.icon size={20} className="role-icon" />
-                  <span className="role-name" style={{ fontSize: '0.8rem' }}>{role.label}</span>
+                  <role.icon size={24} className="role-icon" />
+                  <span className="role-name">{role.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="grid grid-2" style={{ gap: '1rem' }}>
             {/* Name */}
             <div className="auth-input-group">
               <label className="auth-label">Full Name</label>
@@ -168,7 +167,7 @@ export default function RegisterPage(props) {
           </div>
 
           {/* Role-specific fields */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="grid grid-2" style={{ gap: '1rem', transition: 'all 0.3s ease' }}>
             <div className="auth-input-group">
               <label className="auth-label">Department</label>
               <div className="auth-input-wrapper">
@@ -186,7 +185,7 @@ export default function RegisterPage(props) {
             </div>
 
             {selectedRole === 'student' && (
-              <div className="auth-input-group">
+              <div className="auth-input-group animate-slide-in">
                 <label className="auth-label">Student ID</label>
                 <div className="auth-input-wrapper">
                   <Fingerprint className="auth-icon" size={18} />
@@ -204,7 +203,7 @@ export default function RegisterPage(props) {
             )}
 
             {selectedRole === 'faculty' && (
-              <div className="auth-input-group">
+              <div className="auth-input-group animate-slide-in">
                 <label className="auth-label">Subject</label>
                 <div className="auth-input-wrapper">
                   <BookOpen className="auth-icon" size={18} />
