@@ -113,6 +113,21 @@ const AssignmentsPage = () => {
         }
     };
 
+    const handleRunAutograder = async (submissionId) => {
+        setLoadingStudents(true);
+        try {
+            const resp = await axios.post(`${API_BASE}/submissions/${submissionId}/grade_auto`);
+            alert(`Graded! Score: ${resp.data.score}/${resp.data.max_score}\n\n${resp.data.results.map(r => `${r.test}: ${r.passed ? 'PASS' : 'FAIL'}`).join('\n')}`);
+            // Refresh
+            handleTrackProgress(selectedAssignment);
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Autograding failed");
+        } finally {
+            setLoadingStudents(false);
+        }
+    };
+
     const handleSendIndividualReminder = async (studentId, studentEmail, studentName) => {
         if (!studentEmail) {
             alert("This student doesn't have an email address configured.");
@@ -432,6 +447,15 @@ const AssignmentsPage = () => {
                                                                 onClick={() => handleSendIndividualReminder(s.id, s.email, s.name)}
                                                             >
                                                                 Send Reminder
+                                                            </button>
+                                                        )}
+                                                        {sub && sub.repo_url && (
+                                                            <button
+                                                                className="btn btn-primary"
+                                                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}
+                                                                onClick={() => handleRunAutograder(sub.id)}
+                                                            >
+                                                                Autograde
                                                             </button>
                                                         )}
                                                     </td>

@@ -136,11 +136,31 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
             
             exists = db.query(Student).filter(Student.github_username == clean_username).first()
             if not exists:
-                new_student = Student(github_username=clean_username, name=name, student_id=sid, email=email, classroom_id=classroom_id)
+                import secrets
+                from services.notifications import notification_service
+                from routers.auth import hash_password
+                
+                temp_password = secrets.token_urlsafe(10)
+                
+                new_student = Student(
+                    github_username=clean_username, 
+                    name=name, 
+                    student_id=sid, 
+                    email=email, 
+                    classroom_id=classroom_id,
+                    password_hash=hash_password(temp_password)
+                )
                 db.add(new_student)
                 db.commit()
                 db.refresh(new_student)
                 background_tasks.add_task(update_student_data, new_student.id)
+                
+                if email and email.lower() != 'nan':
+                    background_tasks.add_task(
+                        notification_service.send_welcome_email,
+                        name, email, temp_password
+                    )
+                
                 added_count += 1
         return {"message": f"Added {added_count} students"}
     except Exception as e:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import SessionLocal, Submission, Feedback, User
 from schemas import SubmissionRead, FeedbackCreate, FeedbackRead
@@ -34,6 +34,20 @@ def create_feedback(submission_id: int, feedback: FeedbackCreate, instructor_id:
 @router.get("/{submission_id}/feedback", response_model=List[FeedbackRead])
 def read_feedback(submission_id: int, db: Session = Depends(get_db)):
     return db.query(Feedback).filter(Feedback.submission_id == submission_id).all()
+
+@router.post("/{submission_id}/grade_auto")
+def trigger_autograding(submission_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from services.grader import grader_service
+    # We can run this in background
+    # background_tasks.add_task(grader_service.grade_submission, db, submission_id) 
+    # Actually, passing db session to background task is risky due to thread safety/closing.
+    # Better to create new session in task or run synchronously if fast.
+    # For now, let's run synchronously to return results immediately for the demo.
+    
+    result = grader_service.grade_submission(db, submission_id)
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
 
 @router.patch("/{submission_id}/grade")
 def update_grade(submission_id: int, grade: int, manual_score: int, db: Session = Depends(get_db)):

@@ -8,11 +8,11 @@ import {
     Award,
     Menu,
     X,
-    Radar,
-    History
+    History,
+    LogOut
 } from 'lucide-react';
 
-const CurtainNav = () => {
+const CurtainNav = ({ onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
     const location = useLocation();
 
@@ -29,7 +29,7 @@ const CurtainNav = () => {
     return (
         <>
             <div className="navbar-trigger" onClick={toggleMenu} title="Toggle Navigation">
-                {isOpen ? <X size={24} /> : <Radar size={24} />}
+                {isOpen ? <X size={24} /> : <Menu size={24} />}
             </div>
 
             <div className={`curtain-menu ${isOpen ? 'open' : ''}`}>
@@ -46,6 +46,21 @@ const CurtainNav = () => {
                         </NavLink>
                     ))}
                 </div>
+                {onLogout && (
+                    <div className="curtain-nav" style={{ marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
+                        <a
+                            className="curtain-nav-item"
+                            onClick={() => {
+                                onLogout();
+                                setIsOpen(false);
+                            }}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            <LogOut />
+                            <span>Sign Out</span>
+                        </a>
+                    </div>
+                )}
             </div>
 
             {isOpen && (

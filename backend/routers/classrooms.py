@@ -13,9 +13,11 @@ def get_db():
     finally:
         db.close()
 
+from dependencies import require_faculty
+
 @router.post("/", response_model=ClassroomRead)
-def create_classroom(classroom: ClassroomCreate, owner_id: int = 1, db: Session = Depends(get_db)):
-    db_classroom = Classroom(**classroom.dict(), owner_id=owner_id)
+def create_classroom(classroom: ClassroomCreate, db: Session = Depends(get_db), user: dict = Depends(require_faculty)):
+    db_classroom = Classroom(**classroom.dict(), owner_id=1) # TODO: Use user['user_id']_id)
     db.add(db_classroom)
     db.commit()
     db.refresh(db_classroom)
@@ -42,7 +44,7 @@ def update_classroom(classroom_id: int, classroom_update: ClassroomCreate, db: S
     return db_classroom
 
 @router.delete("/{classroom_id}")
-def delete_classroom(classroom_id: int, db: Session = Depends(get_db)):
+def delete_classroom(classroom_id: int, db: Session = Depends(get_db), user: dict = Depends(require_faculty)):
     classroom = db.query(Classroom).filter(Classroom.id == classroom_id).first()
     if not classroom: raise HTTPException(status_code=404, detail="Classroom not found")
     db.delete(classroom)

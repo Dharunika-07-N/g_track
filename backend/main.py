@@ -33,7 +33,11 @@ async def lifespan(app: FastAPI):
         db.commit()
     db.close()
 
-    scheduler.start()
+    
+    # Start Scheduler
+    from services.scheduler_service import start_scheduler
+    scheduler = start_scheduler()
+    
     # Trigger initial update immediately in background
     asyncio.create_task(scheduled_update_all())
     yield
@@ -58,6 +62,8 @@ app.include_router(classrooms.router)
 app.include_router(assignments.router)
 app.include_router(submissions.router)
 app.include_router(analytics.router)
+from routers import auth
+app.include_router(auth.router)
 
 def get_db():
     db = SessionLocal()

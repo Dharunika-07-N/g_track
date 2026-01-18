@@ -1,24 +1,26 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, GraduationCap, Shield, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-export default function RegisterPage() {
+export default function RegisterPage(props) {
   const [formData, setFormData] = useState({
-    name: '',
+    github_username: '',
     email: '',
     password: '',
     role: 'student'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const roles = [
     { id: 'student', label: 'Student', icon: User },
     { id: 'faculty', label: 'Faculty', icon: GraduationCap },
-    { id: 'admin', label: 'Admin', icon: Shield },
+    { id: 'admin', label: 'HOD', icon: Shield },
   ];
 
   const handleChange = (e) => {
@@ -34,9 +36,14 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.post(`${API_URL}/auth/register`, formData);
-      // Auto login or redirect to login
-      window.location.href = '/login?registered=true';
+      const response = await axios.post(`${API_URL}/auth/register`, formData);
+      // Auto login
+      if (typeof props.onRegister === 'function') {
+        props.onRegister(response.data.access_token, response.data.role);
+        navigate('/dashboard');
+      } else {
+        window.location.href = '/login?registered=true';
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.');
     } finally {
@@ -77,13 +84,13 @@ export default function RegisterPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Full Name</label>
+            <label className="form-label">GitHub Username</label>
             <input
               type="text"
-              name="name"
+              name="github_username"
               className="form-input"
-              placeholder="John Doe"
-              value={formData.name}
+              placeholder="octocat"
+              value={formData.github_username}
               onChange={handleChange}
               required
             />
@@ -121,7 +128,7 @@ export default function RegisterPage() {
         </form>
 
         <div className="auth-footer">
-          Already have an account? 
+          Already have an account?
           <a href="/login" className="auth-link">Sign in</a>
         </div>
       </div>

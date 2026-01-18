@@ -18,6 +18,8 @@ class User(Base):
     github_username = Column(String, unique=True, index=True)
     name = Column(String)
     email = Column(String)
+    password_hash = Column(String, nullable=True) # Check nullable for migration safety, enforce in logic
+    role = Column(String, default="student")
     avatar_url = Column(String)
     access_token = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -57,6 +59,7 @@ class Student(Base):
     name = Column(String, index=True)
     student_id = Column(String) # School/College ID
     email = Column(String)
+    password_hash = Column(String, nullable=True)
     github_username = Column(String, unique=True, index=True)
     profile_url = Column(String)
     avatar_url = Column(String)

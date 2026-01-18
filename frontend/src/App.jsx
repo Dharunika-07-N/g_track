@@ -6,6 +6,8 @@ import ClassroomDetail from './components/ClassroomDetail';
 import StudentsPage from './components/StudentsPage';
 import AssignmentsPage from './components/AssignmentsPage';
 import AnalyticsPage from './components/AnalyticsPage';
+import LoginPage from './components/LoginPage';
+import RegisterPage from './components/RegisterPage';
 import axios from 'axios';
 import {
   Github,
@@ -21,7 +23,7 @@ import {
 
 const API_BASE = 'http://localhost:8000';
 
-const DashboardHome = () => {
+const DashboardHome = ({ role }) => {
   const [period, setPeriod] = useState('monthly');
   const [stats, setStats] = useState({ total_students: 0, active_students: 0, total_commits: 0, graded_today: 0 });
   const [leaderboard, setLeaderboard] = useState([]);
@@ -75,7 +77,6 @@ const DashboardHome = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert("Students imported successfully");
-      // Refresh stats after upload
       const statsRes = await axios.get(`${API_BASE}/dashboard/stats?period=${period}`);
       setStats(statsRes.data);
     } catch (err) {
@@ -92,6 +93,7 @@ const DashboardHome = () => {
       <header className="header" style={{ borderBottom: 'none' }}>
         <div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>Command Center</h1>
+          {role && <span className="badge badge-primary">{role.toUpperCase()}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -114,7 +116,6 @@ const DashboardHome = () => {
               ))}
             </div>
 
-            {/* Quick Import Button */}
             <div style={{ position: 'relative' }}>
               <input
                 type="file"
@@ -165,6 +166,7 @@ const DashboardHome = () => {
         </div>
       </header>
 
+      {/* Stats and Leaderboard */}
       <div className="grid grid-4" style={{ marginBottom: '2.5rem' }}>
         <div
           className="card glass stat-card clickable"
@@ -189,7 +191,6 @@ const DashboardHome = () => {
           <span className="stat-value">{stats.total_commits}</span>
           <span className="stat-label">Total Commits</span>
         </div>
-        {/* Removed Graded Today box as requested */}
         <div className="card glass stat-card">
           <Clock size={24} color="var(--accent)" style={{ marginBottom: '1rem' }} />
           <span className="stat-value">
@@ -277,20 +278,80 @@ const UpcomingDeadlinesList = () => {
 };
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const role = localStorage.getItem('role');
+
+    if (token) {
+      axios.get(`${API_BASE}/auth/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => {
+          setIsAuthenticated(true);
+          setUserRole(res.data.role);
+        })
+        .catch(() => {
+          localStorage.removeItem('token');
+          localStorage.removeItem('role');
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleLogin = (token, role) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('role', role);
+    setIsAuthenticated(true);
+    setUserRole(role);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+    setIsAuthenticated(false);
+    setUserRole(null);
+    window.location.href = '/login';
+  };
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', marginTop: '5rem' }}>Loading...</div>;
+
   return (
     <Router>
-      <div className="layout">
-        <CurtainNav />
+      {!isAuthenticated ? (
         <Routes>
-          <Route path="/" element={<DashboardHome />} />
-          <Route path="/classrooms" element={<ClassroomList />} />
-          <Route path="/classrooms/:id" element={<ClassroomDetail />} />
-          <Route path="/students" element={<StudentsPage />} />
-          <Route path="/assignments" element={<AssignmentsPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+          <Route path="/register" element={<RegisterPage onRegister={handleLogin} />} />
+          <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
-      </div>
+      ) : (
+        <div className="layout">
+          <CurtainNav onLogout={handleLogout} />
+          <Routes>
+            <Route path="/" element={<DashboardHome role={userRole} />} />
+            <Route path="/dashboard" element={<Navigate to="/" />} />
+            <Route path="/classrooms" element={<ClassroomList />} />
+            <Route path="/classrooms/:id" element={<ClassroomDetail />} />
+            <Route path="/analysis" element={<AnalyticsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+
+            {/* Conditional Routes based on Role */}
+            {(userRole === 'admin' || userRole === 'hod' || userRole === 'faculty') && (
+              <>
+                <Route path="/students" element={<StudentsPage />} />
+                <Route path="/assignments" element={<AssignmentsPage />} />
+              </>
+            )}
+
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+      )}
     </Router>
   );
 }

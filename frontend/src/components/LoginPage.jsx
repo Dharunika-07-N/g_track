@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LogIn, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-export default function LoginPage() {
-  const [formData, setFormData] = useState({ username: '', password: '' });
+export default function LoginPage(props) {
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -19,13 +21,16 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const form = new FormData();
-      form.append('username', formData.username);
-      form.append('password', formData.password);
-
-      const response = await axios.post(`${API_URL}/auth/login`, form);
-      localStorage.setItem('token', response.data.access_token);
-      window.location.href = '/dashboard'; // Or use useNavigate()
+      const response = await axios.post(`${API_URL}/auth/login`, formData, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (typeof props.onLogin === 'function') {
+        props.onLogin(response.data.access_token, response.data.role);
+      } else {
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('role', response.data.role);
+        window.location.href = '/dashboard';
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Invalid email or password');
     } finally {
@@ -53,10 +58,10 @@ export default function LoginPage() {
             <label className="form-label">Email Address</label>
             <input
               type="email"
-              name="username"
+              name="email"
               className="form-input"
               placeholder="name@institution.edu"
-              value={formData.username}
+              value={formData.email}
               onChange={handleChange}
               required
             />
@@ -81,7 +86,7 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-footer">
-          Don't have an account? 
+          Don't have an account?
           <a href="/register" className="auth-link">Create account</a>
         </div>
       </div>
