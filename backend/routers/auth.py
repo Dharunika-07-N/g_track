@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import jwt
 import bcrypt
 from pydantic import BaseModel
+from typing import Optional
 from database import SessionLocal, User
 import os
 
@@ -19,6 +20,10 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     role: str = "student"  # student, faculty, hod
+    name: Optional[str] = None
+    department: Optional[str] = None
+    subject_name: Optional[str] = None
+    student_id: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -73,7 +78,10 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         email=req.email,
         password_hash=hash_password(req.password),
         role=req.role,
-        name=req.github_username, # Default name
+        name=req.name or req.github_username,
+        department=req.department,
+        subject_name=req.subject_name,
+        student_id=req.student_id,
         created_at=datetime.utcnow()
     )
     db.add(user)

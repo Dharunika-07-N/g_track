@@ -20,6 +20,9 @@ class User(Base):
     email = Column(String)
     password_hash = Column(String, nullable=True) # Check nullable for migration safety, enforce in logic
     role = Column(String, default="student")
+    department = Column(String, nullable=True)
+    subject_name = Column(String, nullable=True)
+    student_id = Column(String, nullable=True)
     avatar_url = Column(String)
     access_token = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
