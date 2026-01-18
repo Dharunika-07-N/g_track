@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, GraduationCap, Shield, AlertCircle, GitHub, Mail, Lock, UserCheck, BookOpen, Fingerprint } from 'lucide-react';
+import { User, GraduationCap, Shield, AlertCircle, Github, Mail, Lock, UserCheck, BookOpen, Fingerprint } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
 
@@ -136,7 +136,7 @@ export default function RegisterPage(props) {
             <div className="auth-input-group">
               <label className="auth-label">GitHub Username</label>
               <div className="auth-input-wrapper">
-                <GitHub className="auth-icon" size={18} />
+                <Github className="auth-icon" size={18} />
                 <input
                   type="text"
                   name="github_username"
