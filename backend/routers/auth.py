@@ -72,6 +72,22 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Check if HOD already exists for this department
+    if req.role == "hod" or req.role == "admin":
+        if not req.department:
+            raise HTTPException(status_code=400, detail="Department is required for HOD registration")
+        
+        existing_hod = db.query(User).filter(
+            User.role.in_(["hod", "admin"]),
+            User.department == req.department
+        ).first()
+        
+        if existing_hod:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"An HOD/Admin already exists for the {req.department} department. Only one HOD per department is allowed."
+            )
+    
     # Create user
     user = User(
         github_username=req.github_username,
