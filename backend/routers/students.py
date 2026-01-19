@@ -109,8 +109,23 @@ async def add_student(student: StudentCreate, background_tasks: BackgroundTasks,
     return new_student
 
 @router.get("/", response_model=List[StudentRead])
-def read_students(classroom_id: Optional[int] = None, period: str = "monthly", skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    cutoff = get_period_cutoff(period)
+def read_students(
+    classroom_id: Optional[int] = None, 
+    period: str = "monthly", 
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    # Handle custom date range
+    if period == "custom" and start_date and end_date:
+        cutoff_start = start_date
+        cutoff_end = end_date
+    else:
+        cutoff_start = get_period_cutoff(period)
+        cutoff_end = datetime.utcnow().strftime("%Y-%m-%d")
+    
     query = db.query(Student)
     if classroom_id: query = query.filter(Student.classroom_id == classroom_id)
     students = query.all()
@@ -122,7 +137,11 @@ def read_students(classroom_id: Optional[int] = None, period: str = "monthly", s
             func.sum(ActivityLog.issue_count).label("issues"),
             func.sum(ActivityLog.review_count).label("reviews"),
             func.count(ActivityLog.id).label("active_days")
-        ).filter(ActivityLog.student_id == s.id, ActivityLog.date_str >= cutoff).first()
+        ).filter(
+            ActivityLog.student_id == s.id, 
+            ActivityLog.date_str >= cutoff_start,
+            ActivityLog.date_str <= cutoff_end
+        ).first()
         
         commits = logs_summary.commits or 0
         prs = logs_summary.prs or 0

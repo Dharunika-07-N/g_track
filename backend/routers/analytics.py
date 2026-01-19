@@ -17,10 +17,25 @@ def get_db():
         db.close()
 
 @router.get("/export/csv")
-def export_full_history(classroom_id: int = None, status: str = None, period: str = "all", db: Session = Depends(get_db)):
+def export_full_history(
+    classroom_id: int = None, 
+    status: str = None, 
+    period: str = "all",
+    start_date: str = None,
+    end_date: str = None,
+    db: Session = Depends(get_db)
+):
     try:
         from routers.students import get_period_cutoff
-        cutoff = get_period_cutoff(period)
+        from datetime import datetime
+        
+        # Handle custom date range
+        if period == "custom" and start_date and end_date:
+            cutoff_start = start_date
+            cutoff_end = end_date
+        else:
+            cutoff_start = get_period_cutoff(period)
+            cutoff_end = datetime.utcnow().strftime("%Y-%m-%d")
         
         # Base Student Query
         students = db.query(Student)
@@ -38,7 +53,11 @@ def export_full_history(classroom_id: int = None, status: str = None, period: st
                 func.sum(ActivityLog.issue_count).label("issues"),
                 func.sum(ActivityLog.review_count).label("reviews"),
                 func.count(ActivityLog.id).label("active_days")
-            ).filter(ActivityLog.student_id == s.id, ActivityLog.date_str >= cutoff).first()
+            ).filter(
+                ActivityLog.student_id == s.id, 
+                ActivityLog.date_str >= cutoff_start,
+                ActivityLog.date_str <= cutoff_end
+            ).first()
             
             commits = logs_summary.commits or 0
             prs = logs_summary.prs or 0
@@ -54,12 +73,14 @@ def export_full_history(classroom_id: int = None, status: str = None, period: st
                 if status != combined_status:
                     continue
 
+            period_label = f"{start_date} to {end_date}" if period == "custom" else period.capitalize()
+            
             export_data.append({
                 "Roll No": s.student_id,
                 "Name": s.name,
                 "Email": s.email,
                 "GitHub": s.github_username,
-                "Period": period.capitalize(),
+                "Period": period_label,
                 "Commits": commits,
                 "PRs": prs,
                 "Issues": issues,
@@ -75,7 +96,8 @@ def export_full_history(classroom_id: int = None, status: str = None, period: st
         df.to_excel(output, index=False)
         output.seek(0)
         
-        filename = f"{period}_{status or 'students'}_report.xlsx"
+        filename_period = f"{start_date}_to_{end_date}" if period == "custom" else period
+        filename = f"{filename_period}_{status or 'students'}_report.xlsx"
         headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:

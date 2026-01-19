@@ -13,19 +13,33 @@ const StudentsPage = () => {
     const [uploading, setUploading] = useState(false);
     const [searchParams, setSearchParams] = useSearchParams();
     const period = searchParams.get('period') || 'monthly';
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     useEffect(() => {
         fetchStudents();
-    }, [period]);
+    }, [period, startDate, endDate]);
 
     const setPeriod = (p) => {
+        if (p === 'custom') {
+            setShowDatePicker(true);
+        } else {
+            setShowDatePicker(false);
+            setStartDate('');
+            setEndDate('');
+        }
         setSearchParams({ period: p });
     };
 
     const fetchStudents = async () => {
         setLoading(true);
         try {
-            const resp = await axios.get(`${API_BASE}/students/?period=${period}&limit=100`);
+            let url = `${API_BASE}/students/?period=${period}&limit=100`;
+            if (period === 'custom' && startDate && endDate) {
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+            }
+            const resp = await axios.get(url);
             setStudents(resp.data);
         } catch (err) {
             console.error(err);
@@ -126,8 +140,8 @@ const StudentsPage = () => {
                     <p style={{ color: 'var(--text-muted)' }}>Global view of all tracked students and their activity</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    <div className="glass" style={{ display: 'flex', padding: '0.25rem', borderRadius: '0.75rem' }}>
-                        {['today', 'weekly', 'monthly', 'yearly', 'all'].map(p => (
+                    <div className="glass" style={{ display: 'flex', padding: '0.25rem', borderRadius: '0.75rem', flexWrap: 'wrap', gap: '0.25rem' }}>
+                        {['today', 'weekly', 'monthly', 'yearly', 'all', 'custom'].map(p => (
                             <button
                                 key={p}
                                 onClick={() => setPeriod(p)}
@@ -144,7 +158,33 @@ const StudentsPage = () => {
                             </button>
                         ))}
                     </div>
-                    <button className="btn btn-secondary glass" onClick={() => window.open(`${API_BASE}/analytics/export/csv?period=${period}`, '_blank')}>
+                    {showDatePicker && period === 'custom' && (
+                        <div className="glass" style={{ display: 'flex', gap: '0.5rem', padding: '0.5rem', borderRadius: '0.75rem', alignItems: 'center' }}>
+                            <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>From:</label>
+                            <input
+                                type="date"
+                                className="input"
+                                style={{ padding: '0.5rem', fontSize: '0.875rem', width: 'auto' }}
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+                            <label style={{ fontSize: '0.875rem', fontWeight: 600 }}>To:</label>
+                            <input
+                                type="date"
+                                className="input"
+                                style={{ padding: '0.5rem', fontSize: '0.875rem', width: 'auto' }}
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+                        </div>
+                    )}
+                    <button className="btn btn-secondary glass" onClick={() => {
+                        let url = `${API_BASE}/analytics/export/csv?period=${period}`;
+                        if (period === 'custom' && startDate && endDate) {
+                            url += `&start_date=${startDate}&end_date=${endDate}`;
+                        }
+                        window.open(url, '_blank');
+                    }}>
                         <Download size={20} />
                         Export
                     </button>
