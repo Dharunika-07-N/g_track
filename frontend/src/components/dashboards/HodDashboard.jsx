@@ -93,6 +93,18 @@ export default function HodDashboard() {
         }
     };
 
+    const handleDeleteUser = async (userId, userName) => {
+        if (!window.confirm(`Are you sure you want to delete ${userName}?`)) return;
+        try {
+            await axios.post(`${API_BASE}/hod/users/bulk-delete`, { user_ids: [userId] }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            fetchData();
+        } catch (err) {
+            alert("Delete failed");
+        }
+    };
+
     const toggleUserSelection = (id) => {
         setSelectedUsers(prev =>
             prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]
@@ -219,6 +231,7 @@ export default function HodDashboard() {
                                 <th>Department</th>
                                 <th>System ID</th>
                                 <th>GitHub</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -246,6 +259,16 @@ export default function HodDashboard() {
                                                 @{user.github_username}
                                             </a>
                                         ) : '-'}
+                                    </td>
+                                    <td>
+                                        <button
+                                            className="btn btn-danger glass"
+                                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.875rem' }}
+                                            onClick={() => handleDeleteUser(user.id, user.name)}
+                                            title="Delete User"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </td>
                                 </tr>
                             ))}
