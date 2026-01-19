@@ -60,17 +60,28 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
         for index, row in df.iterrows():
             try:
                 # Map columns (flexible aliases)
-                email = str(row.get('email', '')).strip()
-                name = str(row.get('name', '')).strip()
+                email_raw = str(row.get('email', '')).strip()
+                name = str(row.get('name', 'Unknown')).strip()
                 roll_no = str(row.get('roll_number', row.get('roll_no', row.get('student_id', '')))).strip()
-                github = str(row.get('github_url', row.get('github', ''))).strip()
+                
+                # Support "Github ID" which becomes "github_id" after cleaning
+                github = str(row.get('github_url', row.get('github', row.get('github_id', '')))).strip()
+                
                 dept = str(row.get('department', row.get('dept', ''))).strip()
                 phone = str(row.get('phone', row.get('phone_number', ''))).strip()
                 leetcode = str(row.get('leetcode_username', row.get('leetcode', ''))).strip()
                 
-                if not email or email.lower() == 'nan':
-                    error_rows.append({"row": index+2, "reason": "Missing email"})
-                    continue
+                # Handle missing email by generating one from github or roll_no
+                if not email_raw or email_raw.lower() == 'nan':
+                    if github and github.lower() != 'nan':
+                        email = f"{github.split('/')[-1]}@internal.com"
+                    elif roll_no and roll_no.lower() != 'nan':
+                        email = f"{roll_no}@internal.com"
+                    else:
+                        error_rows.append({"row": index+2, "reason": "Missing email and cannot generate fallback (no Github/Roll No)"})
+                        continue
+                else:
+                    email = email_raw
                 
                 # Check if user exists
                 existing = db.query(User).filter(User.email == email).first()
