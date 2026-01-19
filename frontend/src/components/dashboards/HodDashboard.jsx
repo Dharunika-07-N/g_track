@@ -66,7 +66,11 @@ export default function HodDashboard() {
                     Authorization: `Bearer ${localStorage.getItem('token')}`
                 }
             });
-            setImportStatus({ success: true, message: resp.data.message });
+            setImportStatus({
+                success: true,
+                message: resp.data.message,
+                errors: resp.data.errors
+            });
             fetchData();
         } catch (err) {
             setImportStatus({ success: false, message: err.response?.data?.detail || "Import failed" });
@@ -114,9 +118,21 @@ export default function HodDashboard() {
             </header>
 
             {importStatus && (
-                <div className={`auth-error ${importStatus.success ? 'badge-success' : ''}`} style={{ marginBottom: '2rem', padding: '1rem', borderRadius: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    {importStatus.success ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                    <span>{importStatus.message}</span>
+                <div className={`auth-error ${importStatus.success ? 'badge-success' : ''}`} style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '1rem', display: 'block' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: importStatus.errors?.length ? '1rem' : 0 }}>
+                        {importStatus.success ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                        <span style={{ fontWeight: 600 }}>{importStatus.message}</span>
+                    </div>
+                    {importStatus.errors?.length > 0 && (
+                        <div style={{ maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.05)', padding: '1rem', borderRadius: '0.5rem', fontSize: '0.85rem' }}>
+                            <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>Error Details:</p>
+                            {importStatus.errors.map((err, i) => (
+                                <div key={i} style={{ marginBottom: '0.25rem', color: 'var(--error)' }}>
+                                    Row {err.row}: {err.reason}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
