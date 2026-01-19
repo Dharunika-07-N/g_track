@@ -83,10 +83,16 @@ async def update_student_data(student_id: int):
 
 def get_period_cutoff(period: str) -> str:
     now = datetime.utcnow()
-    if period == "weekly": cutoff = now - timedelta(days=7)
-    elif period == "monthly": cutoff = now - timedelta(days=30)
-    elif period == "yearly": cutoff = now - timedelta(days=365)
-    else: return "2000-01-01"
+    if period == "today": 
+        return now.strftime("%Y-%m-%d")
+    elif period == "weekly": 
+        cutoff = now - timedelta(days=7)
+    elif period == "monthly": 
+        cutoff = now - timedelta(days=30)
+    elif period == "yearly": 
+        cutoff = now - timedelta(days=365)
+    else: 
+        return "2000-01-01"
     return cutoff.strftime("%Y-%m-%d")
 
 @router.post("/", response_model=StudentRead)

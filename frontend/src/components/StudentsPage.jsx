@@ -127,7 +127,7 @@ const StudentsPage = () => {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <div className="glass" style={{ display: 'flex', padding: '0.25rem', borderRadius: '0.75rem' }}>
-                        {['weekly', 'monthly', 'yearly', 'all'].map(p => (
+                        {['today', 'weekly', 'monthly', 'yearly', 'all'].map(p => (
                             <button
                                 key={p}
                                 onClick={() => setPeriod(p)}
