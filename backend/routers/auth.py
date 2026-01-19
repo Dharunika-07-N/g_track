@@ -77,15 +77,18 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
         if not req.department:
             raise HTTPException(status_code=400, detail="Department is required for HOD registration")
         
-        existing_hod = db.query(User).filter(
+        existing_hods_count = db.query(User).filter(
             User.role.in_(["hod", "admin"]),
             User.department == req.department
-        ).first()
+        ).count()
         
-        if existing_hod:
+        # Allow multiple HODs for AIML (demo + actual)
+        limit = 2 if req.department.upper() == "AIML" else 1
+        
+        if existing_hods_count >= limit:
             raise HTTPException(
                 status_code=400, 
-                detail=f"An HOD/Admin already exists for the {req.department} department. Only one HOD per department is allowed."
+                detail=f"Registration failed: The {req.department} department already has the maximum number of HOD/Admin accounts ({limit})."
             )
     
     # Create user

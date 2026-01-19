@@ -151,7 +151,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
 
 @router.get("/users", dependencies=[Depends(require_admin)])
 def list_users(role: Optional[str] = None, department: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(User)
+    query = db.query(User).filter(User.email != 'demouser@gmail.com', User.name != 'demouser')
     if role:
         query = query.filter(User.role == role)
     if department:
