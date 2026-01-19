@@ -4,12 +4,23 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
 import os
+from dotenv import load_dotenv
+
+# Load .env file if it exists (primarily for local dev)
+load_dotenv()
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{os.path.join(BASE_DIR, 'tracker.db')}")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    DATABASE_URL = f"sqlite:///{os.path.join(BASE_DIR, 'tracker.db')}"
+elif DATABASE_URL.startswith("postgres://"):
+    # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # For SQLite, we need to allow multiple threads
 engine_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=engine_args)
+engine = create_engine(DATABASE_URL, connect_args=engine_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
