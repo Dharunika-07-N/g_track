@@ -97,7 +97,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                     email=email,
                     role="student",
                     password_hash=hash_password(temp_password),
-                    github_username=github.rstrip('/').split('/')[-1] if github else None,
+                    github_username=github.rstrip('/').strip('@').split('/')[-1] if github else None,
                     department=dept,
                     student_id=roll_no,
                     phone=phone,
@@ -119,6 +119,10 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 )
                 db.add(new_student)
                 db.commit()
+                
+                # Trigger background sync for this student
+                from routers.students import update_student_data
+                background_tasks.add_task(update_student_data, new_student.id)
                 
                 # Send welcome email
                 if email:

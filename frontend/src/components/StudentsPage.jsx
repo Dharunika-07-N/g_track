@@ -43,6 +43,16 @@ const StudentsPage = () => {
         }
     };
 
+    const handleSyncAll = async () => {
+        try {
+            await axios.post(`${API_BASE}/students/sync-all`);
+            alert("Background sync started for all students. Data will update progressively.");
+        } catch (err) {
+            console.error(err);
+            alert("Failed to start sync");
+        }
+    };
+
     const handleDelete = async (id) => {
         if (!window.confirm("Are you sure you want to archive this student?")) return;
         try {
@@ -181,6 +191,11 @@ const StudentsPage = () => {
                         <button className="btn btn-secondary glass" onClick={fetchStudents}>
                             <RefreshCw size={18} />
                             Reload
+                        </button>
+
+                        <button className="btn btn-primary glass" onClick={handleSyncAll}>
+                            <RefreshCw size={18} />
+                            Sync All
                         </button>
                     </div>
                 </div>

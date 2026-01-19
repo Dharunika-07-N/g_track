@@ -25,9 +25,15 @@ async def update_student_data(student_id: int):
     try:
         student = db.query(Student).filter(Student.id == student_id).first()
         if not student: return
+        
+        print(f"--- Starting Sync for student: {student.github_username} ---")
+        
         # GitHub Sync
-        data = await tracker_service.analyze_user(student.github_username)
+        clean_username = student.github_username.strip().strip('@').split('/')[-1]
+        data = await tracker_service.analyze_user(clean_username)
+        
         if data:
+            print(f"Data received for {clean_username}: {data['stats']}")
             student.name = student.name or data["name"]
             student.avatar_url = data["avatar_url"]
             student.profile_url = data["profile_url"]
@@ -42,6 +48,10 @@ async def update_student_data(student_id: int):
                 log.issue_count = d_data["issues"]
                 log.review_count = d_data["reviews"]
             db.commit()
+            
+            # Refresh logs to get accurate totals
+            db.refresh(student)
+            
             student.total_commits = sum(l.commits_count for l in student.logs)
             student.pull_requests = sum(l.pr_count for l in student.logs)
             student.issues = sum(l.issue_count for l in student.logs)
@@ -51,16 +61,23 @@ async def update_student_data(student_id: int):
             student.active_days = len(student.logs)
             student.last_updated = datetime.utcnow()
             student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
+            print(f"Score updated for {clean_username}: {student.activity_score}")
+        else:
+            print(f"FAILED to fetch data for {clean_username}. Is GITHUB_TOKEN set correctly?")
         
         # LeetCode Sync
         user_record = db.query(User).filter(User.email == student.email).first()
         if user_record and user_record.leetcode_username:
+            print(f"Fetching LeetCode data for {user_record.leetcode_username}...")
             lc_stats = await leetcode_service.get_user_stats(user_record.leetcode_username)
             if lc_stats:
                 student.leetcode_solved = lc_stats["total_solved"]
                 student.leetcode_rating = lc_stats["ranking"] or 0
+                print(f"LeetCode status updated for {user_record.leetcode_username}")
         
         db.commit()
+    except Exception as e:
+        print(f"Error updating student {student_id}: {str(e)}")
     finally:
         db.close()
 
@@ -142,7 +159,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
             email = str(row.get('Email', row.get('email', ''))).strip()
             
             if not github or github.lower() == 'nan': continue
-            clean_username = github.rstrip('/').split('/')[-1]
+            clean_username = github.rstrip('/').strip('@').split('/')[-1]
             if not clean_username: continue
             
             exists = db.query(Student).filter(Student.github_username == clean_username).first()
@@ -163,6 +180,9 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 )
                 db.add(new_student)
                 db.commit()
+                
+                # Trigger background sync for this student
+                background_tasks.add_task(update_student_data, new_student.id)
                 db.refresh(new_student)
                 background_tasks.add_task(update_student_data, new_student.id)
                 
@@ -194,3 +214,10 @@ async def bulk_delete_students(request: BulkDeleteRequest, db: Session = Depends
     db.query(Student).filter(Student.id.in_(request.student_ids)).update({Student.status: "archived"}, synchronize_session=False)
     db.commit()
     return {"message": "Selected students archived"}
+
+@router.post("/sync-all")
+async def sync_all_students(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    students = db.query(Student).filter(Student.status == "active").all()
+    for s in students:
+        background_tasks.add_task(update_student_data, s.id)
+    return {"message": f"Sync scheduled for {len(students)} students"}
