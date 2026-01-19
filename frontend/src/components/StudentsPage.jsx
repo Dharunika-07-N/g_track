@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Search, Users, ExternalLink, RefreshCw, Filter, Trash2, Download } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 const StudentsPage = () => {
     const [students, setStudents] = useState([]);

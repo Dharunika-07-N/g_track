@@ -14,7 +14,7 @@ import {
     TrendingUp
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../../config';
 
 export default function HodDashboard() {
     const [stats, setStats] = useState({ total_students: 0, total_faculty: 0 });

@@ -11,7 +11,7 @@ import {
     ArrowRight
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../../config';
 
 export default function FacultyDashboard() {
     const [stats, setStats] = useState({ total_students: 0, active_students: 0, total_commits: 0 });

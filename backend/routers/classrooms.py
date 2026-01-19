@@ -17,15 +17,15 @@ from dependencies import require_faculty
 
 @router.post("/", response_model=ClassroomRead)
 def create_classroom(classroom: ClassroomCreate, db: Session = Depends(get_db), user: dict = Depends(require_faculty)):
-    db_classroom = Classroom(**classroom.dict(), owner_id=1) # TODO: Use user['user_id']_id)
+    db_classroom = Classroom(**classroom.dict(), owner_id=user['user_id'])
     db.add(db_classroom)
     db.commit()
     db.refresh(db_classroom)
     return db_classroom
 
 @router.get("/", response_model=List[ClassroomRead])
-def read_classrooms(owner_id: int = 1, db: Session = Depends(get_db)):
-    return db.query(Classroom).filter(Classroom.owner_id == owner_id).all()
+def read_classrooms(db: Session = Depends(get_db), user: dict = Depends(require_faculty)):
+    return db.query(Classroom).filter(Classroom.owner_id == user['user_id']).all()
 
 @router.get("/{classroom_id}", response_model=ClassroomRead)
 def read_classroom(classroom_id: int, db: Session = Depends(get_db)):

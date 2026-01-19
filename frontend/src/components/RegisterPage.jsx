@@ -4,7 +4,7 @@ import { User, GraduationCap, Shield, AlertCircle, Github, Mail, Lock, UserCheck
 import axios from 'axios';
 import '../styles/Auth.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE as API_URL } from '../config';
 
 export default function RegisterPage(props) {
   const [selectedRole, setSelectedRole] = useState('student');

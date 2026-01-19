@@ -4,7 +4,7 @@ import { LogIn, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { API_BASE as API_URL } from '../config';
 
 export default function LoginPage(props) {
   const [formData, setFormData] = useState({ email: '', password: '' });

@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:8000";
+import { API_BASE as API_URL } from './config';
 
 async function handleResponse(res, errorMessage) {
   if (!res.ok) {

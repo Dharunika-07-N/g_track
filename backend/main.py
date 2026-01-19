@@ -9,11 +9,12 @@ import asyncio
 from typing import List, Optional
 import os
 
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+from services.tracker import tracker_service
+
 # Import routers
 from routers import students, classrooms, assignments, submissions, analytics, hod, student_portal
-
-from services.tracker import tracker_service
-from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -27,13 +28,13 @@ async def lifespan(app: FastAPI):
         default_user = User(
             github_username="admin",
             name="Default Instructor",
-            email="admin@example.com"
+            email="admin@example.com",
+            role="hod"
         )
         db.add(default_user)
         db.commit()
     db.close()
 
-    
     # Start Scheduler
     from services.scheduler_service import start_scheduler
     scheduler = start_scheduler()
@@ -46,6 +47,10 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 app = FastAPI(title="Github Classroom Tracker", lifespan=lifespan)
+
+# Static files for templates
+os.makedirs("templates", exist_ok=True)
+app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
 # CORS
 app.add_middleware(

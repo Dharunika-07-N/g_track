@@ -3,7 +3,7 @@ import axios from 'axios';
 import { BookOpen, Calendar, Clock, Filter, Plus, Download, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 const AssignmentsPage = () => {
     const [assignments, setAssignments] = useState([]);

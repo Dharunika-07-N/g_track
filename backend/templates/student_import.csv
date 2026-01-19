@@ -1,0 +1,3 @@
+name,email,roll_number,github,department,phone,leetcode_username
+John Doe,john@example.edu,2024CS01,https://github.com/johndoe,Computer Science,1234567890,johndoe_lc
+Jane Smith,jane@example.edu,2024CS02,https://github.com/janesmith,Information Technology,0987654321,janesmith_lc

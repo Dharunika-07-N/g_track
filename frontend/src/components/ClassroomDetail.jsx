@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import AssignmentForm from './AssignmentForm';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from '../config';
 
 const ClassroomDetail = () => {
     const { id } = useParams();

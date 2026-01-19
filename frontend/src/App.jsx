@@ -24,7 +24,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+import { API_BASE } from './config';
 
 const DashboardSwitcher = ({ role }) => {
   if (role === 'admin' || role === 'hod') return <HodDashboard />;
