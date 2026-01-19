@@ -144,7 +144,7 @@ const StudentsPage = () => {
                             </button>
                         ))}
                     </div>
-                    <button className="btn btn-secondary glass" onClick={() => window.open(`${API_BASE}/analytics/export/csv`, '_blank')}>
+                    <button className="btn btn-secondary glass" onClick={() => window.open(`${API_BASE}/analytics/export/csv?period=${period}`, '_blank')}>
                         <Download size={20} />
                         Export
                     </button>

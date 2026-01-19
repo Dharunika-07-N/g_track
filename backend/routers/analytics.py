@@ -17,45 +17,65 @@ def get_db():
         db.close()
 
 @router.get("/export/csv")
-def export_full_history(classroom_id: int = None, status: str = None, db: Session = Depends(get_db)):
+def export_full_history(classroom_id: int = None, status: str = None, period: str = "all", db: Session = Depends(get_db)):
     try:
+        from routers.students import get_period_cutoff
+        cutoff = get_period_cutoff(period)
+        
         # Base Student Query
-        student_query = db.query(
-            Student.student_id.label("roll_no"),
-            Student.name,
-            Student.email,
-            Student.github_username
-        )
-        
+        students = db.query(Student)
         if classroom_id:
-            student_query = student_query.filter(Student.classroom_id == classroom_id)
+            students = students.filter(Student.classroom_id == classroom_id)
         
-        # If status is provided, we filter by submission status for assignments
-        if status:
-            # This is more complex, let's get list of students first
-            students = student_query.all()
-            export_data = []
+        students = students.all()
+        export_data = []
+        
+        for s in students:
+            # Get metrics for this student within the period
+            logs_summary = db.query(
+                func.sum(ActivityLog.commits_count).label("commits"),
+                func.sum(ActivityLog.pr_count).label("prs"),
+                func.sum(ActivityLog.issue_count).label("issues"),
+                func.sum(ActivityLog.review_count).label("reviews"),
+                func.count(ActivityLog.id).label("active_days")
+            ).filter(ActivityLog.student_id == s.id, ActivityLog.date_str >= cutoff).first()
             
-            for s in students:
-                # Check ALL assignments for this student
+            commits = logs_summary.commits or 0
+            prs = logs_summary.prs or 0
+            issues = logs_summary.issues or 0
+            reviews = logs_summary.reviews or 0
+            active_days = logs_summary.active_days or 0
+            score = (commits * 2) + (prs * 3) + (active_days * 1)
+            
+            # Submission status check if requested
+            if status:
                 subs = db.query(Submission).filter(Submission.student_id == s.id).all()
                 combined_status = "completed" if all(sub.status in ["submitted", "graded"] for sub in subs) and subs else "incomplete"
-                
-                if status == "completed" and combined_status == "completed":
-                    export_data.append(s._asdict())
-                elif status == "incomplete" and combined_status == "incomplete":
-                    export_data.append(s._asdict())
+                if status != combined_status:
+                    continue
+
+            export_data.append({
+                "Roll No": s.student_id,
+                "Name": s.name,
+                "Email": s.email,
+                "GitHub": s.github_username,
+                "Period": period.capitalize(),
+                "Commits": commits,
+                "PRs": prs,
+                "Issues": issues,
+                "Reviews": reviews,
+                "Active Days": active_days,
+                "Activity Score": score,
+                "Status": s.status
+            })
             
-            df = pd.DataFrame(export_data)
-        else:
-            activity_results = student_query.all()
-            df = pd.DataFrame([dict(r._asdict()) for r in activity_results]) if activity_results else pd.DataFrame()
+        df = pd.DataFrame(export_data)
         
         output = io.BytesIO()
         df.to_excel(output, index=False)
         output.seek(0)
         
-        filename = f"{status or 'all'}_students_report.xlsx"
+        filename = f"{period}_{status or 'students'}_report.xlsx"
         headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
         return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
