@@ -89,8 +89,17 @@ def export_full_history(
                 "Activity Score": score,
                 "Status": s.status
             })
+        # Sort by Activity Score Descending (Ranking Wise)
+        export_data.sort(key=lambda x: x["Activity Score"], reverse=True)
+        
+        # Add Rank column and reorder fields to put Rank first
+        ranked_export_data = []
+        for i, item in enumerate(export_data):
+            ranked_item = {"Rank": i + 1}
+            ranked_item.update(item)
+            ranked_export_data.append(ranked_item)
             
-        df = pd.DataFrame(export_data)
+        df = pd.DataFrame(ranked_export_data)
         
         output = io.BytesIO()
         df.to_excel(output, index=False)
