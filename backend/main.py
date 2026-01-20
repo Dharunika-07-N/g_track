@@ -61,16 +61,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
-app.include_router(students.router)
-app.include_router(classrooms.router)
-app.include_router(assignments.router)
-app.include_router(submissions.router)
-app.include_router(analytics.router)
-app.include_router(hod.router)
-app.include_router(student_portal.router)
-from routers import auth
-app.include_router(auth.router)
+from routers.auth import verify_token, router as auth_router
+
+# Include Routers with Security
+app.include_router(students.router, dependencies=[Depends(verify_token)])
+app.include_router(classrooms.router, dependencies=[Depends(verify_token)])
+app.include_router(assignments.router, dependencies=[Depends(verify_token)])
+app.include_router(submissions.router, dependencies=[Depends(verify_token)])
+app.include_router(analytics.router, dependencies=[Depends(verify_token)])
+app.include_router(hod.router, dependencies=[Depends(verify_token)])
+app.include_router(student_portal.router, dependencies=[Depends(verify_token)])
+app.include_router(auth_router)
 
 def get_db():
     db = SessionLocal()
@@ -109,11 +110,12 @@ def sync_scheduler_wrapper():
 scheduler = BackgroundScheduler()
 scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
 
+
 @app.get("/")
 def read_root():
     return {"message": "Github Classroom Tracker API is running"}
 
-@app.get("/dashboard/stats")
+@app.get("/dashboard/stats", dependencies=[Depends(verify_token)])
 def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
     from routers.students import get_period_cutoff
     from sqlalchemy import func
@@ -143,7 +145,7 @@ def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
         "github_token_configured": bool(tracker_service.token)
     }
 
-@app.get("/dashboard/daily-stats")
+@app.get("/dashboard/daily-stats", dependencies=[Depends(verify_token)])
 def daily_stats(date: str, db: Session = Depends(get_db)):
     # Expected format YYYY-MM-DD
     # Returns stats for that specific day
@@ -166,7 +168,7 @@ def daily_stats(date: str, db: Session = Depends(get_db)):
         "assignments_due": assignments_due
     }
 
-@app.get("/dashboard/leaderboard")
+@app.get("/dashboard/leaderboard", dependencies=[Depends(verify_token)])
 def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depends(get_db)):
     from routers.students import get_period_cutoff
     from database import Student, ActivityLog
@@ -204,7 +206,7 @@ def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depen
     leaderboard.sort(key=lambda x: x["score"], reverse=True)
     return leaderboard
 
-@app.get("/dashboard/upcoming")
+@app.get("/dashboard/upcoming", dependencies=[Depends(verify_token)])
 def upcoming_deadlines(limit: int = 5, db: Session = Depends(get_db)):
     from database import Assignment
     from datetime import datetime

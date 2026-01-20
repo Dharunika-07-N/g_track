@@ -13,8 +13,8 @@ class NotificationService:
         self.password = os.getenv("SMTP_PASSWORD")
         self.from_email = os.getenv("SMTP_FROM_EMAIL", self.user)
         self.from_name = os.getenv("SMTP_FROM_NAME", "GitHub Activity Tracker")
-        # Check if email notifications are enabled
-        self.enabled = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "True").lower() == "true"
+        # HARD DISABLED as per user request
+        self.enabled = False
 
     
     def send_welcome_email(self, student_name: str, student_email: str, temp_password: str, login_url: str = "http://localhost:5173/login"):

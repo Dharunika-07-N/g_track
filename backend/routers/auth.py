@@ -59,82 +59,71 @@ def create_token(user_id: int, role: str) -> str:
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Additional check to ensure ONLY the authorized user can use the app
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == payload["user_id"]).first()
+            if not user or user.email != "dharunikaktm@gmail.com":
+                raise HTTPException(status_code=403, detail="Access Restricted: Only authorized personnel allowed.")
+        finally:
+            db.close()
+            
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid authentication")
 
 @router.post("/register", response_model=TokenResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    # Check if user exists
-    existing = db.query(User).filter(User.email == req.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # Registration disabled as per user request
+    raise HTTPException(status_code=403, detail="Registration is currently disabled.")
+
+@router.post("/login", response_model=TokenResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    # STRICT ACCESS CONTROL: Only allowed user
+    AUTHORIZED_EMAIL = "dharunikaktm@gmail.com"
+    AUTHORIZED_PASS = "12345"
+    AUTHORIZED_ROLE = "hod"
+
+    if req.email != AUTHORIZED_EMAIL or req.password != AUTHORIZED_PASS:
+        raise HTTPException(status_code=403, detail="Access Restricted: Only authorized personnel allowed.")
+
+    user = db.query(User).filter(User.email == AUTHORIZED_EMAIL).first()
     
-    # Check if HOD already exists for this department
-    if req.role == "hod" or req.role == "admin":
-        if not req.department:
-            raise HTTPException(status_code=400, detail="Department is required for HOD registration")
-        
-        existing_hods_count = db.query(User).filter(
-            User.role.in_(["hod", "admin"]),
-            User.department == req.department
-        ).count()
-        
-        # Allow multiple HODs for AIML (demo + actual)
-        limit = 2 if req.department.upper() == "AIML" else 1
-        
-        if existing_hods_count >= limit:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Registration failed: The {req.department} department already has the maximum number of HOD/Admin accounts ({limit})."
-            )
-    
-    # Create user
-    user = User(
-        github_username=req.github_username,
-        email=req.email,
-        password_hash=hash_password(req.password),
-        role=req.role,
-        name=req.name or req.github_username,
-        department=req.department,
-        subject_name=req.subject_name,
-        student_id=req.student_id,
-        created_at=datetime.utcnow()
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    
+    # If the user doesn't exist in the DB, we might want to create them or 
+    # mock them. To ensure the app works (which usually expects a DB user), 
+    # we'll look for them.
+    if not user:
+        # Create the authorized user if they don't exist
+        user = User(
+            email=AUTHORIZED_EMAIL,
+            password_hash=hash_password(AUTHORIZED_PASS),
+            role=AUTHORIZED_ROLE,
+            name="HOD Dharunika",
+            github_username="dharunika", # placeholder
+            created_at=datetime.utcnow()
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    elif user.role != AUTHORIZED_ROLE:
+        # Force the role to HOD if it's different
+        user.role = AUTHORIZED_ROLE
+        user.password_hash = hash_password(AUTHORIZED_PASS)
+        db.commit()
+        db.refresh(user)
+
     token = create_token(user.id, user.role)
     return TokenResponse(
         access_token=token,
         token_type="bearer",
         role=user.role,
-        user_id=user.id
-    )
-
-@router.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == req.email).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-    if not user.password_hash:
-        # Handle users created before auth (e.g. default admin)
-        # For now error out or perhaps allow if password matches some default?
-        # Better to raise invalid credentials
-        raise HTTPException(status_code=401, detail="Invalid credentials (legacy user, please reset password)")
-
-    if not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    token = create_token(user.id, user.role or "student")
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-        role=user.role or "student",
         user_id=user.id
     )
 
