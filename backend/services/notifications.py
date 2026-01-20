@@ -13,9 +13,16 @@ class NotificationService:
         self.password = os.getenv("SMTP_PASSWORD")
         self.from_email = os.getenv("SMTP_FROM_EMAIL", self.user)
         self.from_name = os.getenv("SMTP_FROM_NAME", "GitHub Activity Tracker")
+        # Check if email notifications are enabled
+        self.enabled = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "True").lower() == "true"
 
     
     def send_welcome_email(self, student_name: str, student_email: str, temp_password: str, login_url: str = "http://localhost:5173/login"):
+        # Skip sending email if notifications are disabled
+        if not self.enabled:
+            print(f"Email notifications disabled - Skipping welcome email to {student_email}")
+            return True
+        
         subject = "Welcome to GitHub Activity Tracker"
         body = f"""
         <html>
@@ -53,6 +60,11 @@ class NotificationService:
             return False
 
     def send_assignment_reminder(self, student_name: str, student_email: str, assignment_title: str, deadline: datetime):
+        # Skip sending email if notifications are disabled
+        if not self.enabled:
+            print(f"Email notifications disabled - Skipping reminder email to {student_email}")
+            return True
+        
         subject = f"Reminder: {assignment_title} Due Soon"
         body = f"""
         <html>
