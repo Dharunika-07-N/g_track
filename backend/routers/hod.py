@@ -89,14 +89,16 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                     error_rows.append({"row": index+2, "reason": "Email already exists"})
                     continue
                 
-                temp_password = secrets.token_urlsafe(8)
+                # Password set to Roll Number (student_id) as per user request
+                password_to_use = roll_no if roll_no and roll_no.lower() != 'nan' else secrets.token_urlsafe(8)
+                hashed_pw = hash_password(password_to_use)
                 
                 # Create User
                 new_user = User(
                     name=name,
                     email=email,
                     role="student",
-                    password_hash=hash_password(temp_password),
+                    password_hash=hashed_pw,
                     github_username=github.rstrip('/').strip('@').split('/')[-1] if github else None,
                     department=dept,
                     student_id=roll_no,
@@ -115,7 +117,8 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                     student_id=roll_no,
                     email=email,
                     github_username=new_user.github_username,
-                    status="active"
+                    status="active",
+                    password_hash=hashed_pw
                 )
                 db.add(new_student)
                 db.commit()
@@ -128,7 +131,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 if email:
                     background_tasks.add_task(
                         notification_service.send_welcome_email,
-                        name, email, temp_password
+                        name, email, password_to_use
                     )
                 
                 success_count += 1

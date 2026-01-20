@@ -45,6 +45,7 @@ class StudentBase(BaseModel):
     github_username: str
     student_id: Optional[str] = None
     email: Optional[str] = None
+    department: Optional[str] = None
 
 class StudentCreate(StudentBase):
     classroom_id: Optional[int] = None

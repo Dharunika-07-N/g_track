@@ -23,6 +23,7 @@ const StudentsPage = () => {
         github_username: '',
         student_id: '',
         email: '',
+        department: '',
         classroom_id: ''
     });
 
@@ -143,7 +144,7 @@ const StudentsPage = () => {
             await axios.post(`${API_BASE}/students/`, payload);
             alert("Student added successfully");
             setShowAddModal(false);
-            setNewStudent({ name: '', github_username: '', student_id: '', email: '', classroom_id: '' });
+            setNewStudent({ name: '', github_username: '', student_id: '', email: '', department: '', classroom_id: '' });
             fetchStudents();
         } catch (err) {
             console.error(err);
@@ -420,6 +421,16 @@ const StudentsPage = () => {
                                     placeholder="e.g. john@example.com"
                                     value={newStudent.email}
                                     onChange={e => setNewStudent({ ...newStudent, email: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Department</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    placeholder="e.g. CSE, AIML"
+                                    value={newStudent.department}
+                                    onChange={e => setNewStudent({ ...newStudent, department: e.target.value })}
                                 />
                             </div>
                             <div>

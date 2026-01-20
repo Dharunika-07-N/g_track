@@ -114,21 +114,37 @@ class GitHubTracker:
                     
                 if etype == "PushEvent":
                     payload = event.get("payload", {})
-                    size = payload.get("size")
-                    if size is None:
-                        commits = payload.get("commits", [])
-                        size = len(commits) if commits else 1
-                    stats["commits"] += size
-                    daily_stats[date_key]["commits"] += size
+                    # GitHub size can sometimes be 0 for complex pushes, check commits list
+                    size = payload.get("size", 0)
+                    distinct_size = payload.get("distinct_size", 0)
+                    commits_list = payload.get("commits", [])
+                    
+                    # Take the highest count available from various payload fields
+                    actual_commits = max(size, distinct_size, len(commits_list))
+                    
+                    # Fallback: if it's a PushEvent, it should likely count as at least 1
+                    # but only if we really have no other info and it's not a tag Ref
+                    if actual_commits == 0 and not payload.get("ref", "").startswith("refs/tags/"):
+                        actual_commits = 1
+
+                    stats["commits"] += actual_commits
+                    daily_stats[date_key]["commits"] += actual_commits
                 elif etype == "PullRequestEvent":
-                    stats["pull_requests"] += 1
-                    daily_stats[date_key]["prs"] += 1
+                    # Only count as a contribution if it's opened or merged
+                    action = event.get("payload", {}).get("action")
+                    if action in ["opened", "closed", "reopened", "synchronize"]:
+                        stats["pull_requests"] += 1
+                        daily_stats[date_key]["prs"] += 1
                 elif etype == "IssuesEvent":
                     stats["issues"] += 1
                     daily_stats[date_key]["issues"] += 1
                 elif etype == "PullRequestReviewEvent":
                     stats["reviews"] += 1
                     daily_stats[date_key]["reviews"] += 1
+                elif etype == "CommitCommentEvent":
+                    # Adding support for comments as activity
+                    stats["commits"] += 1 
+                    daily_stats[date_key]["commits"] += 1
             
             return {
                 "username": user_info.get("login"),

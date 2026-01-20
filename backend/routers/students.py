@@ -49,19 +49,25 @@ async def update_student_data(student_id: int):
                 log.review_count = d_data["reviews"]
             db.commit()
             
-            # Refresh logs to get accurate totals
-            db.refresh(student)
-            
-            student.total_commits = sum(l.commits_count for l in student.logs)
-            student.pull_requests = sum(l.pr_count for l in student.logs)
-            student.issues = sum(l.issue_count for l in student.logs)
-            student.reviews = sum(l.review_count for l in student.logs)
+            # Use a more robust sum directly from the DB logs to ensure accuracy
+            total_stats = db.query(
+                func.sum(ActivityLog.commits_count).label("commits"),
+                func.sum(ActivityLog.pr_count).label("prs"),
+                func.sum(ActivityLog.issue_count).label("issues"),
+                func.sum(ActivityLog.review_count).label("reviews"),
+                func.count(ActivityLog.id).label("active_days")
+            ).filter(ActivityLog.student_id == student.id).first()
+
+            student.total_commits = total_stats.commits or 0
+            student.pull_requests = total_stats.prs or 0
+            student.issues = total_stats.issues or 0
+            student.reviews = total_stats.reviews or 0
             student.repo_count = data["stats"]["repo_count"]
             student.total_events = data["stats"]["total_events"]
-            student.active_days = len(student.logs)
+            student.active_days = total_stats.active_days or 0
             student.last_updated = datetime.utcnow()
             student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
-            print(f"Score updated for {clean_username}: {student.activity_score}")
+            print(f"Sync complete for {clean_username}. Total Commits: {student.total_commits}, Score: {student.activity_score}")
         else:
             print(f"FAILED to fetch data for {clean_username}. Is GITHUB_TOKEN set correctly?")
         
@@ -98,18 +104,46 @@ def get_period_cutoff(period: str) -> str:
 @router.post("/", response_model=StudentRead)
 async def add_student(student: StudentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     clean_username = student.github_username.strip().rstrip('/').split('/')[-1]
+    
+    # Check if student already exists in tracking
     db_student = db.query(Student).filter(Student.github_username == clean_username).first()
-    if db_student: raise HTTPException(status_code=400, detail="Student already tracked")
+    if db_student: 
+        raise HTTPException(status_code=400, detail="Student already tracked in registry")
     
     import secrets
     from services.notifications import notification_service
     from routers.auth import hash_password
     
-    temp_password = secrets.token_urlsafe(10)
+    # Password set to Roll Number (student_id) as per user request
+    if not student.student_id:
+        raise HTTPException(status_code=400, detail="Student ID (Roll Number) is required to set login password")
+        
+    password_to_use = str(student.student_id).strip()
+    hashed_pw = hash_password(password_to_use)
     
+    # Check if User already exists
+    existing_user = db.query(User).filter((User.github_username == clean_username) | (User.email == student.email)).first()
+    
+    if not existing_user:
+        # Create User record for the dashboard
+        new_user = User(
+            name=student.name,
+            email=student.email,
+            github_username=clean_username,
+            student_id=student.student_id,
+            department=student.department,
+            role="student",
+            password_hash=hashed_pw,
+            password_reset_required=True
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+    
+    # Create Student record for tracking
     new_student = Student(**student.dict())
     new_student.github_username = clean_username
-    new_student.password_hash = hash_password(temp_password)
+    new_student.password_hash = hashed_pw
     
     db.add(new_student)
     db.commit()
@@ -121,7 +155,7 @@ async def add_student(student: StudentCreate, background_tasks: BackgroundTasks,
     if new_student.email and new_student.email.lower() != 'nan':
         background_tasks.add_task(
             notification_service.send_welcome_email,
-            new_student.name, new_student.email, temp_password
+            new_student.name, new_student.email, password_to_use
         )
         
     return new_student
@@ -200,6 +234,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
             github = str(row.get('GitHub', row.get('github', row.get('username', '')))).strip()
             sid = str(row.get('ID', row.get('student_id', ''))).strip()
             email = str(row.get('Email', row.get('email', ''))).strip()
+            dept = str(row.get('Department', row.get('department', row.get('dept', '')))).strip()
             
             if not github or github.lower() == 'nan': continue
             clean_username = github.rstrip('/').strip('@').split('/')[-1]
@@ -211,28 +246,47 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 from services.notifications import notification_service
                 from routers.auth import hash_password
                 
-                temp_password = secrets.token_urlsafe(10)
+                # Password set to Roll Number (student_id) as per user request
+                password_to_use = sid if sid and sid.lower() != 'nan' else secrets.token_urlsafe(8)
+                hashed_pw = hash_password(password_to_use)
                 
+                # Check if User already exists (by email or github)
+                existing_user = db.query(User).filter((User.github_username == clean_username) | (User.email == email)).first()
+                if not existing_user:
+                    # Create User record
+                    new_user = User(
+                        name=name,
+                        email=email,
+                        github_username=clean_username,
+                        student_id=sid,
+                        department=dept,
+                        role="student",
+                        password_hash=hashed_pw,
+                        password_reset_required=True
+                    )
+                    db.add(new_user)
+                    db.commit()
+
+                # Create Student record
                 new_student = Student(
                     github_username=clean_username, 
                     name=name, 
                     student_id=sid, 
                     email=email, 
                     classroom_id=classroom_id,
-                    password_hash=hash_password(temp_password)
+                    password_hash=hashed_pw
                 )
                 db.add(new_student)
                 db.commit()
                 
                 # Trigger background sync for this student
-                background_tasks.add_task(update_student_data, new_student.id)
                 db.refresh(new_student)
                 background_tasks.add_task(update_student_data, new_student.id)
                 
                 if email and email.lower() != 'nan':
                     background_tasks.add_task(
                         notification_service.send_welcome_email,
-                        name, email, temp_password
+                        name, email, password_to_use
                     )
                 
                 added_count += 1
