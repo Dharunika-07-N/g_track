@@ -81,6 +81,7 @@ class Student(Base):
     student_id = Column(String) # School/College ID
     email = Column(String)
     password_hash = Column(String, nullable=True)
+    department = Column(String, nullable=True)
     github_username = Column(String, unique=True, index=True)
     profile_url = Column(String)
     avatar_url = Column(String)

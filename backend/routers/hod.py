@@ -116,6 +116,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                     name=name,
                     student_id=roll_no,
                     email=email,
+                    department=dept,
                     github_username=new_user.github_username,
                     status="active",
                     password_hash=hashed_pw
@@ -149,7 +150,14 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
             "errors": error_rows
         }
         
+    except pd.errors.EmptyDataError:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty")
+    except pd.errors.ParserError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Critical error in upload_students: {error_details}")
         raise HTTPException(status_code=500, detail=f"Critical error: {str(e)}")
 
 @router.get("/users", dependencies=[Depends(require_admin)])
