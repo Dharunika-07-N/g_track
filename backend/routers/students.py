@@ -100,12 +100,30 @@ async def add_student(student: StudentCreate, background_tasks: BackgroundTasks,
     clean_username = student.github_username.strip().rstrip('/').split('/')[-1]
     db_student = db.query(Student).filter(Student.github_username == clean_username).first()
     if db_student: raise HTTPException(status_code=400, detail="Student already tracked")
+    
+    import secrets
+    from services.notifications import notification_service
+    from routers.auth import hash_password
+    
+    temp_password = secrets.token_urlsafe(10)
+    
     new_student = Student(**student.dict())
     new_student.github_username = clean_username
+    new_student.password_hash = hash_password(temp_password)
+    
     db.add(new_student)
     db.commit()
     db.refresh(new_student)
+    
+    # Trigger background sync for this student
     background_tasks.add_task(update_student_data, new_student.id)
+    
+    if new_student.email and new_student.email.lower() != 'nan':
+        background_tasks.add_task(
+            notification_service.send_welcome_email,
+            new_student.name, new_student.email, temp_password
+        )
+        
     return new_student
 
 @router.get("/", response_model=List[StudentRead])

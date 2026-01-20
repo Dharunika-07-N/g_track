@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Users, ExternalLink, RefreshCw, Filter, Trash2, Download } from 'lucide-react';
+import { Search, Users, ExternalLink, RefreshCw, Filter, Trash2, Download, Plus, X } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { API_BASE } from '../config';
@@ -16,10 +16,29 @@ const StudentsPage = () => {
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [classrooms, setClassrooms] = useState([]);
+    const [newStudent, setNewStudent] = useState({
+        name: '',
+        github_username: '',
+        student_id: '',
+        email: '',
+        classroom_id: ''
+    });
 
     useEffect(() => {
         fetchStudents();
+        fetchClassrooms();
     }, [period, startDate, endDate]);
+
+    const fetchClassrooms = async () => {
+        try {
+            const resp = await axios.get(`${API_BASE}/classrooms/`);
+            setClassrooms(resp.data);
+        } catch (err) {
+            console.error("Failed to fetch classrooms", err);
+        }
+    };
 
     const setPeriod = (p) => {
         if (p === 'custom') {
@@ -108,6 +127,27 @@ const StudentsPage = () => {
         } finally {
             setUploading(false);
             e.target.value = null; // reset input
+        }
+    };
+
+    const handleAddStudent = async (e) => {
+        e.preventDefault();
+        try {
+            const payload = { ...newStudent };
+            if (!payload.classroom_id) {
+                delete payload.classroom_id;
+            } else {
+                payload.classroom_id = parseInt(payload.classroom_id);
+            }
+
+            await axios.post(`${API_BASE}/students/`, payload);
+            alert("Student added successfully");
+            setShowAddModal(false);
+            setNewStudent({ name: '', github_username: '', student_id: '', email: '', classroom_id: '' });
+            fetchStudents();
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.detail || "Failed to add student");
         }
     };
 
@@ -221,6 +261,10 @@ const StudentsPage = () => {
                             </label>
                         </div>
 
+                        <button className="btn btn-primary glass" onClick={() => setShowAddModal(true)} style={{ padding: '0.5rem', minWidth: 'auto' }}>
+                            <Plus size={20} />
+                        </button>
+
                         {/* Remove All (Bulk Delete) */}
                         {selectedStudents.length > 0 && (
                             <button className="btn btn-danger glass" onClick={handleBulkDelete}>
@@ -326,6 +370,79 @@ const StudentsPage = () => {
                     </div>
                 )}
             </div>
+            {showAddModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
+                    <div className="card glass" style={{ width: '100%', maxWidth: '450px', padding: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Add Student Manually</h2>
+                            <button className="btn btn-secondary glass" style={{ padding: '0.25rem', minWidth: 'auto', border: 'none' }} onClick={() => setShowAddModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Full Name</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    required
+                                    placeholder="e.g. John Doe"
+                                    value={newStudent.name}
+                                    onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>GitHub Username</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    required
+                                    placeholder="e.g. johndoe"
+                                    value={newStudent.github_username}
+                                    onChange={e => setNewStudent({ ...newStudent, github_username: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Student ID / Roll No</label>
+                                <input
+                                    type="text"
+                                    className="input"
+                                    placeholder="e.g. 2021CS101"
+                                    value={newStudent.student_id}
+                                    onChange={e => setNewStudent({ ...newStudent, student_id: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Email Address</label>
+                                <input
+                                    type="email"
+                                    className="input"
+                                    placeholder="e.g. john@example.com"
+                                    value={newStudent.email}
+                                    onChange={e => setNewStudent({ ...newStudent, email: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.875rem', marginBottom: '0.5rem', fontWeight: 600 }}>Classroom (Optional)</label>
+                                <select
+                                    className="input"
+                                    value={newStudent.classroom_id}
+                                    onChange={e => setNewStudent({ ...newStudent, classroom_id: e.target.value })}
+                                >
+                                    <option value="">None</option>
+                                    {classrooms.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                <button type="button" className="btn btn-secondary glass" onClick={() => setShowAddModal(false)} style={{ flex: 1 }}>Cancel</button>
+                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Add Student</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };
