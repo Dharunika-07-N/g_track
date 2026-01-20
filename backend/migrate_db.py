@@ -38,6 +38,7 @@ try:
     
     student_columns_to_add = [
         ("password_hash", "VARCHAR"),
+        ("department", "VARCHAR"),
         ("leetcode_solved", "INTEGER DEFAULT 0"),
         ("leetcode_rating", "INTEGER DEFAULT 0"),
         ("hackerrank_score", "INTEGER DEFAULT 0")
