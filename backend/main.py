@@ -8,6 +8,17 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import asyncio
 from typing import List, Optional
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Debug: Print first/last 4 chars of token to verify it's loaded
+token = os.getenv("GITHUB_TOKEN")
+if token:
+    print(f"✅ Token loaded: {token[:4]}...{token[-4:]}")
+else:
+    print("❌ ERROR: GITHUB_TOKEN not found in environment!")
 
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager

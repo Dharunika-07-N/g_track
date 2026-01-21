@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 import os
 from dotenv import load_dotenv
 import asyncio
+import time
 
 load_dotenv()
 
@@ -21,6 +22,9 @@ class GitHubTracker:
             "Accept": "application/vnd.github.cloak-preview+json",  # Required for commit search
             "User-Agent": "GithubActivityTracker/1.0"
         }
+        # Rate limiting: Track last search API call time
+        self.last_search_call = 0
+        self.min_search_interval = 6.5  # seconds (to stay under 10/min limit)
     
     async def get_owned_repo_count(self, username: str) -> int:
         """Gets only owned repos (not forks)."""
@@ -65,13 +69,21 @@ class GitHubTracker:
         end_date: str = None  # Format: YYYY-MM-DD
     ) -> int:
         """
-        Gets accurate commit count using Search API.
+        Gets accurate commit count using Search API with rate limit handling.
         IMPORTANT: This only counts commits where the user is the AUTHOR.
         """
         if not self.token:
             return 0
         
         try:
+            # Rate limiting: Wait if needed to stay under 10 requests/minute
+            now = time.time()
+            time_since_last = now - self.last_search_call
+            if time_since_last < self.min_search_interval:
+                await asyncio.sleep(self.min_search_interval - time_since_last)
+            
+            self.last_search_call = time.time()
+            
             async with httpx.AsyncClient(headers=self.search_headers, timeout=15.0) as client:
                 # Build the search query
                 if not end_date:
@@ -80,19 +92,31 @@ class GitHubTracker:
                 # GitHub Search API uses author-date (when commit was originally made)
                 query = f"author:{username} author-date:{start_date}..{end_date}"
                 
-                resp = await client.get(
-                    f"{self.base_url}/search/commits",
-                    params={"q": query, "per_page": 1}  # We only need the count
-                )
-                
-                if resp.status_code == 200:
-                    return resp.json().get("total_count", 0)
-                elif resp.status_code == 422:
-                    print(f"Invalid date range for {username}: {start_date} to {end_date}")
-                    return 0
-                else:
-                    print(f"Search API error {resp.status_code} for {username}")
-                    return 0
+                max_retries = 3
+                for attempt in range(max_retries):
+                    resp = await client.get(
+                        f"{self.base_url}/search/commits",
+                        params={"q": query, "per_page": 1}  # We only need the count
+                    )
+                    
+                    if resp.status_code == 200:
+                        return resp.json().get("total_count", 0)
+                    elif resp.status_code == 403:
+                        # Rate limit hit - check if we should retry
+                        retry_after = int(resp.headers.get("Retry-After", 60))
+                        if attempt < max_retries - 1:
+                            print(f"Rate limit hit for {username}, waiting {retry_after}s...")
+                            await asyncio.sleep(retry_after)
+                            continue
+                        else:
+                            print(f"Rate limit exceeded for {username}, giving up")
+                            return 0
+                    elif resp.status_code == 422:
+                        print(f"Invalid date range for {username}: {start_date} to {end_date}")
+                        return 0
+                    else:
+                        print(f"Search API error {resp.status_code} for {username}")
+                        return 0
                     
         except Exception as e:
             print(f"Error fetching commits for {username}: {e}")
