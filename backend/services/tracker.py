@@ -116,7 +116,8 @@ class GitHubTracker:
                     "repo_count": user_data["repositories"]["totalCount"],
                     "avatar_url": user_data["avatarUrl"],
                     "profile_url": user_data["url"],
-                    "name": user_data["name"] or username
+                    "name": user_data["name"] or username,
+                    "daily_breakdown": calendar["weeks"] # Expose raw calendar
                 }
                 
         except Exception as e:
@@ -161,7 +162,8 @@ class GitHubTracker:
                 "end_date": end_date,
                 "avatar_url": real_stats["avatar_url"],
                 "profile_url": real_stats["profile_url"],
-                "name": real_stats["name"]
+                "name": real_stats["name"],
+                "daily_breakdown": real_stats.get("daily_breakdown", [])
             }
         else:
             # Fallback to empty if even GraphQL fails

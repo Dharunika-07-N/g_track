@@ -22,6 +22,103 @@ def get_db():
     finally:
         db.close()
 
+@router.get("/", response_model=List[StudentRead])
+async def read_students(
+    period: str = "all-time",
+    classroom_id: Optional[int] = None, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db)
+):
+    # Determine date range for filtering
+    start_date = "2000-01-01"
+    today = datetime.utcnow().date()
+    
+    if period == "daily":
+        start_date = str(today)
+    elif period == "weekly":
+        start_date = str(today - timedelta(days=7))
+    elif period == "monthly":
+        start_date = str(today - timedelta(days=30))
+    
+    query = db.query(Student).filter(Student.status == "active")
+    if classroom_id:
+        query = query.filter(Student.classroom_id == classroom_id)
+    
+    # If all-time, just return the cached totals (fast path)
+    if period == "all-time":
+        students = query.order_by(Student.activity_score.desc()).offset(skip).limit(limit).all()
+        return students
+
+    # For custom periods, we must aggregate from ActivityLog
+    # Fetch base student objects
+    students = query.all()
+    
+    # Aggregate stats from ActivityLog
+    logs_summary = db.query(
+        ActivityLog.student_id,
+        func.sum(ActivityLog.commits_count).label("commits"),
+        func.sum(ActivityLog.pr_count).label("prs"),
+        func.sum(ActivityLog.issue_count).label("issues"),
+        func.sum(ActivityLog.review_count).label("reviews"),
+        func.count(ActivityLog.id).label("active_days") # Approximate active days
+    ).filter(
+        ActivityLog.date_str >= start_date
+    ).group_by(ActivityLog.student_id).all()
+    
+    # Create a map for fast lookup
+    stats_map = {
+        row.student_id: {
+            "commits": row.commits or 0,
+            "prs": row.prs or 0,
+            "issues": row.issues or 0,
+            "reviews": row.reviews or 0,
+            "active_days": row.active_days or 0
+        }
+        for row in logs_summary
+    }
+    
+    # Construct response objects with overwritten stats
+    results = []
+    for s in students:
+        stat = stats_map.get(s.id, {"commits": 0, "prs": 0, "issues": 0, "reviews": 0, "active_days": 0})
+        
+        # Calculate scores dynamically
+        score = (stat["commits"] * 2) + (stat["prs"] * 3) + (stat["active_days"] * 1)
+        
+        # We create a dictionary representation first
+        s_dict = {
+            "id": s.id,
+            "name": s.name,
+            "github_username": s.github_username,
+            "student_id": s.student_id,
+            "email": s.email,
+            "department": s.department,
+            "classroom_id": s.classroom_id,
+            "profile_url": s.profile_url,
+            "avatar_url": s.avatar_url,
+            "status": s.status,
+            "last_updated": s.last_updated,
+            
+            # Dynamic fields
+            "total_commits": stat["commits"],
+            "pull_requests": stat["prs"],
+            "issues": stat["issues"],
+            "reviews": stat["reviews"],
+            "repo_count": s.repo_count, # Repo count is hard to track over time, keeping static
+            "total_events": stat["commits"] + stat["prs"] + stat["issues"] + stat["reviews"],
+            "active_days": stat["active_days"],
+            "activity_score": score
+        }
+        results.append(s_dict)
+    
+    # Sort by activity score descending (in Python since we modified the values)
+    results.sort(key=lambda x: x["activity_score"], reverse=True)
+    
+    # Pagination
+    paginated_results = results[skip : skip + limit]
+    return paginated_results
+
 async def update_student_data_background(student_id: int, start_date: str = "2025-12-01", end_date: str = "2026-01-21"):
     """
     Background task to sync student data.
@@ -43,7 +140,7 @@ async def update_student_data_background(student_id: int, start_date: str = "202
             period="custom"
         )
         
-        # Update student record
+        # Update student record (Totals)
         student.total_commits = stats["total_commits"]
         student.pull_requests = stats["pull_requests"]
         student.repo_count = stats["repo_count"]
@@ -60,230 +157,40 @@ async def update_student_data_background(student_id: int, start_date: str = "202
                     student.avatar_url = user_info.get("avatar_url")
                     student.profile_url = user_info.get("html_url")
         
+        # ---------------------------------------------------------
+        # CRITICAL: SAVE DAILY LOGS TO DATABASE
+        # ---------------------------------------------------------
+        if "daily_breakdown" in stats:
+            for week in stats["daily_breakdown"]:
+                for day in week["contributionDays"]:
+                    date_str = day["date"] # YYYY-MM-DD
+                    count = day["contributionCount"]
+                    
+                    if count > 0:
+                        # Check if log exists
+                        log = db.query(ActivityLog).filter(
+                            ActivityLog.student_id == student.id,
+                            ActivityLog.date_str == date_str
+                        ).first()
+                        
+                        if log:
+                            log.commits_count = count # Approximation: GitHub gives total, we map to commits
+                            # We don't distinguish PRs vs Commits per day in simple calendar, 
+                            # so we store everything as 'commits_count' for trending, or assume mostly commits.
+                        else:
+                            new_log = ActivityLog(
+                                student_id=student.id,
+                                date_str=date_str,
+                                commits_count=count
+                            )
+                            db.add(new_log)
+        
         db.commit()
     except Exception as e:
         print(f"Error in background update for student {student_id}: {str(e)}")
         db.rollback()
     finally:
         db.close()
-
-@router.get("/{student_id}/stats")
-async def get_student_stats(
-    student_id: int,
-    start_date: Optional[str] = Query("2025-12-01", description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query("2026-01-21", description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db)
-):
-    """
-    Get student stats for a custom date range.
-    """
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    if not student.github_username:
-        raise HTTPException(status_code=400, detail="Student has no GitHub username")
-    
-    try:
-        stats = await tracker_service.get_complete_student_stats(
-            username=student.github_username,
-            start_date=start_date,
-            end_date=end_date,
-            period="custom"
-        )
-        
-        return {
-            "student": {
-                "id": student.id,
-                "name": student.name,
-                "github_username": student.github_username,
-                "avatar_url": student.avatar_url
-            },
-            "stats": stats,
-            "date_range": {
-                "start": start_date,
-                "end": end_date
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
-
-@router.post("/{student_id}/update")
-async def update_student_data_endpoint(
-    student_id: int,
-    start_date: str = "2025-12-01",
-    end_date: str = "2026-01-21",
-    db: Session = Depends(get_db)
-):
-    """
-    Update student's data in database for specific date range.
-    """
-    student = db.query(Student).filter(Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    
-    if not student.github_username:
-        raise HTTPException(status_code=400, detail="Student has no GitHub username")
-    
-    try:
-        stats = await tracker_service.get_complete_student_stats(
-            username=student.github_username,
-            start_date=start_date,
-            end_date=end_date,
-            period="custom"
-        )
-        
-        student.total_commits = stats["total_commits"]
-        student.pull_requests = stats["pull_requests"]
-        student.repo_count = stats["repo_count"]
-        student.active_days = stats["active_days"]
-        student.activity_score = stats["activity_score"]
-        student.last_updated = datetime.utcnow()
-        
-        db.commit()
-        db.refresh(student)
-        
-        return {
-            "message": "Student data updated successfully",
-            "student": {
-                "id": student.id,
-                "name": student.name,
-                "github_username": student.github_username,
-                "total_commits": student.total_commits,
-                "pull_requests": student.pull_requests,
-                "active_days": student.active_days,
-                "activity_score": student.activity_score
-            }
-        }
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error updating student: {str(e)}")
-
-@router.post("/batch-update")
-async def batch_update_students(
-    start_date: str = "2025-12-01",
-    end_date: str = "2026-01-21",
-    db: Session = Depends(get_db)
-):
-    """
-    Update ALL students' data for the specified date range.
-    """
-    students = db.query(Student).filter(Student.github_username.isnot(None), Student.status == "active").all()
-    
-    results = {"total": len(students), "updated": 0, "failed": 0, "errors": []}
-    
-    for student in students:
-        try:
-            stats = await tracker_service.get_complete_student_stats(
-                username=student.github_username,
-                start_date=start_date,
-                end_date=end_date,
-                period="custom"
-            )
-            
-            student.total_commits = stats["total_commits"]
-            student.pull_requests = stats["pull_requests"]
-            student.repo_count = stats["repo_count"]
-            student.active_days = stats["active_days"]
-            student.activity_score = stats["activity_score"]
-            student.last_updated = datetime.utcnow()
-            
-            db.commit()
-            results["updated"] += 1
-            await asyncio.sleep(2) # Nicer rate limiting
-        except Exception as e:
-            results["failed"] += 1
-            results["errors"].append({"student": student.github_username, "error": str(e)})
-            db.rollback()
-    
-    return results
-
-@router.get("/leaderboard")
-async def get_leaderboard(
-    limit: int = Query(15, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """
-    Get top N students by activity score.
-    """
-    students = db.query(Student)\
-        .filter(Student.github_username.isnot(None), Student.status == "active")\
-        .order_by(Student.activity_score.desc())\
-        .limit(limit)\
-        .all()
-    
-    return [
-        {
-            "rank": idx + 1,
-            "id": s.id,
-            "name": s.name,
-            "github_username": s.github_username,
-            "avatar_url": s.avatar_url,
-            "commits": s.total_commits,
-            "prs": s.pull_requests,
-            "active_days": s.active_days,
-            "score": s.activity_score,
-            "last_updated": s.last_updated
-        }
-        for idx, s in enumerate(students)
-    ]
-
-@router.post("/", response_model=StudentRead)
-async def add_student(student: StudentCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    clean_username = student.github_username.strip().rstrip('/').strip('@').split('/')[-1]
-    
-    # Check if student already exists
-    db_student = db.query(Student).filter(Student.github_username == clean_username).first()
-    if db_student: 
-        raise HTTPException(status_code=400, detail="Student already tracked in registry")
-    
-    from routers.auth import hash_password
-    password_to_use = str(student.student_id).strip()
-    hashed_pw = hash_password(password_to_use)
-    
-    # Create User record
-    existing_user = db.query(User).filter((User.github_username == clean_username) | (User.email == student.email)).first()
-    if not existing_user:
-        new_user = User(
-            name=student.name,
-            email=student.email,
-            github_username=clean_username,
-            student_id=student.student_id,
-            department=student.department,
-            role="student",
-            password_hash=hashed_pw,
-            password_reset_required=True
-        )
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-    
-    # Create Student record
-    new_student = Student(**student.dict())
-    new_student.github_username = clean_username
-    new_student.password_hash = hashed_pw
-    
-    db.add(new_student)
-    db.commit()
-    db.refresh(new_student)
-    
-    background_tasks.add_task(update_student_data_background, new_student.id)
-    return new_student
-
-@router.get("/", response_model=List[StudentRead])
-async def read_students(
-    classroom_id: Optional[int] = None, 
-    skip: int = 0, 
-    limit: int = 100, 
-    db: Session = Depends(get_db)
-):
-    query = db.query(Student).filter(Student.status == "active")
-    if classroom_id:
-        query = query.filter(Student.classroom_id == classroom_id)
-    
-    # We return the scores stored in DB (caller should run batch-update to refresh)
-    students = query.order_by(Student.activity_score.desc()).offset(skip).limit(limit).all()
-    return students
 
 @router.post("/upload")
 async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = File(...), classroom_id: Optional[int] = None, db: Session = Depends(get_db)):
