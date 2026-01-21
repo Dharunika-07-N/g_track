@@ -83,33 +83,14 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 else:
                     email = email_raw
                 
-                # Check if user exists
-                existing = db.query(User).filter(User.email == email).first()
-                if existing:
-                    error_rows.append({"row": index+2, "reason": "Email already exists"})
+                # Check if Student record exists instead of User
+                existing_student = db.query(Student).filter(Student.email == email).first()
+                if existing_student:
+                    error_rows.append({"row": index+2, "reason": "Student with this email already exists"})
                     continue
                 
-                # Password set to Roll Number (student_id) as per user request
-                password_to_use = roll_no if roll_no and roll_no.lower() != 'nan' else secrets.token_urlsafe(8)
-                hashed_pw = hash_password(password_to_use)
-                
-                # Create User
-                new_user = User(
-                    name=name,
-                    email=email,
-                    role="student",
-                    password_hash=hashed_pw,
-                    github_username=github.rstrip('/').strip('@').split('/')[-1] if github else None,
-                    department=dept,
-                    student_id=roll_no,
-                    phone=phone,
-                    leetcode_username=leetcode,
-                    password_reset_required=True,
-                    import_batch_id=batch_id
-                )
-                db.add(new_user)
-                db.commit()
-                db.refresh(new_user)
+                # We no longer create a User record (login account) for students.
+                # Just the Student record for tracking.
                 
                 # Create Student record for tracking
                 new_student = Student(
@@ -117,23 +98,16 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                     student_id=roll_no,
                     email=email,
                     department=dept,
-                    github_username=new_user.github_username,
-                    status="active",
-                    password_hash=hashed_pw
+                    github_username=github.rstrip('/').strip('@').split('/')[-1] if github else None,
+                    status="active"
                 )
                 db.add(new_student)
                 db.commit()
+                db.refresh(new_student)
                 
                 # Trigger background sync for this student
                 from routers.students import update_student_data
                 background_tasks.add_task(update_student_data, new_student.id)
-                
-                # Send welcome email
-                if email:
-                    background_tasks.add_task(
-                        notification_service.send_welcome_email,
-                        name, email, password_to_use
-                    )
                 
                 success_count += 1
             except Exception as e:
@@ -162,11 +136,7 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
 
 @router.get("/users", dependencies=[Depends(require_admin)])
 def list_users(role: Optional[str] = None, department: Optional[str] = None, db: Session = Depends(get_db)):
-    query = db.query(User).filter(
-        User.email != 'dharunikaktm@gmail.com',
-        User.name != 'demouser1',
-        User.github_username != 'demouser'
-    )
+    query = db.query(User)
     if role:
         query = query.filter(User.role == role)
     if department:
@@ -183,12 +153,14 @@ def bulk_delete_users(req: BulkActionRequest, db: Session = Depends(get_db)):
 
 @router.get("/stats", dependencies=[Depends(require_admin)])
 def get_hod_stats(db: Session = Depends(get_db)):
+    from database import Classroom
     total_students = db.query(User).filter(User.role == "student").count()
     total_faculty = db.query(User).filter(User.role == "faculty").count()
-    total_classrooms = db.query(User).filter(User.role == "faculty").count() # Placeholder
+    total_classrooms = db.query(Classroom).count()
     
     return {
         "total_students": total_students,
         "total_faculty": total_faculty,
+        "total_classrooms": total_classrooms,
         "department": "All"
     }

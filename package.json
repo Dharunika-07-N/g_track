@@ -1,0 +1,15 @@
+{
+    "name": "github-activity-tracker",
+    "version": "1.0.0",
+    "description": "Deployment scripts for GitHub Activity Tracker",
+    "scripts": {
+        "install:all": "cd backend && pip install -r requirements.txt && cd ../frontend && npm install",
+        "build:frontend": "cd frontend && npm run build",
+        "prod:move": "rm -rf backend/static && cp -r frontend/dist backend/static",
+        "prod:build": "npm run build:frontend && npm run prod:move",
+        "start:backend": "cd backend && gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}

@@ -32,8 +32,18 @@ export default function StudentDashboard() {
         fetchData();
     }, []);
 
-    if (loading) return <div className="main-content">Loading your personal dashboard...</div>;
-    if (!data) return <div className="main-content">Failed to load dashboard.</div>;
+    if (loading) return <div className="main-content">Loading...</div>;
+    if (!data) return (
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            flexDirection: 'column'
+        }}>
+            <h1 style={{ fontSize: '4rem', color: 'red', fontWeight: '900' }}>FAILED TO LOAD</h1>
+        </div>
+    );
 
     const { profile, stats, recent_activity, deadlines } = data;
 

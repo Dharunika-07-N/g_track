@@ -10,5 +10,5 @@ def require_role(allowed_roles: list):
 
 # Common Dependencies
 require_admin = require_role(["admin", "hod"])
-require_faculty = require_role(["faculty", "admin", "hod"])
-require_student = require_role(["student", "faculty", "admin", "hod"])
+require_faculty = require_admin
+require_student = require_admin

@@ -27,19 +27,35 @@ const StudentsPage = () => {
         classroom_id: ''
     });
 
-    useEffect(() => {
-        fetchStudents();
-        fetchClassrooms();
-    }, [period, startDate, endDate]);
-
-    const fetchClassrooms = async () => {
+    const fetchClassrooms = React.useCallback(async () => {
         try {
             const resp = await axios.get(`${API_BASE}/classrooms/`);
             setClassrooms(resp.data);
         } catch (err) {
             console.error("Failed to fetch classrooms", err);
         }
-    };
+    }, [API_BASE]);
+
+    useEffect(() => {
+        const fetchStudents = async () => {
+            setLoading(true);
+            try {
+                let url = `${API_BASE}/students/?period=${period}&limit=100`;
+                if (period === 'custom' && startDate && endDate) {
+                    url += `&start_date=${startDate}&end_date=${endDate}`;
+                }
+                const resp = await axios.get(url);
+                setStudents(resp.data);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStudents();
+        fetchClassrooms();
+    }, [period, startDate, endDate, fetchClassrooms, API_BASE]);
 
     const setPeriod = (p) => {
         if (p === 'custom') {
@@ -50,22 +66,6 @@ const StudentsPage = () => {
             setEndDate('');
         }
         setSearchParams({ period: p });
-    };
-
-    const fetchStudents = async () => {
-        setLoading(true);
-        try {
-            let url = `${API_BASE}/students/?period=${period}&limit=100`;
-            if (period === 'custom' && startDate && endDate) {
-                url += `&start_date=${startDate}&end_date=${endDate}`;
-            }
-            const resp = await axios.get(url);
-            setStudents(resp.data);
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoading(false);
-        }
     };
 
     const handleRefresh = async (id) => {

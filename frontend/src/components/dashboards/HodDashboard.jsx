@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
     Users,
-    UserPlus,
+    BookOpen,
     Upload,
     Download,
     BarChart2,
@@ -38,7 +38,9 @@ export default function HodDashboard() {
                 axios.get(`${API_BASE}/hod/users`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 }),
-                axios.get(`${API_BASE}/dashboard/leaderboard?period=monthly`)
+                axios.get(`${API_BASE}/dashboard/leaderboard?period=monthly`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                })
             ]);
             setStats(statsRes.data);
             setUsers(usersRes.data);
@@ -88,7 +90,7 @@ export default function HodDashboard() {
             });
             setSelectedUsers([]);
             fetchData();
-        } catch (err) {
+        } catch {
             alert("Delete failed");
         }
     };
@@ -100,7 +102,7 @@ export default function HodDashboard() {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
             fetchData();
-        } catch (err) {
+        } catch {
             alert("Delete failed");
         }
     };
@@ -110,6 +112,8 @@ export default function HodDashboard() {
             prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]
         );
     };
+
+    if (loading) return <div className="main-content">Loading...</div>;
 
     return (
         <div className="main-content">
@@ -155,9 +159,9 @@ export default function HodDashboard() {
                     <span className="stat-label">Total Students</span>
                 </div>
                 <div className="card glass stat-card">
-                    <UserPlus size={24} color="var(--secondary)" />
-                    <span className="stat-value">{stats.total_faculty}</span>
-                    <span className="stat-label">Total Faculty</span>
+                    <BookOpen size={24} color="var(--secondary)" />
+                    <span className="stat-value">{stats.total_classrooms}</span>
+                    <span className="stat-label">Total Classrooms</span>
                 </div>
                 <div className="card glass stat-card">
                     <BarChart2 size={24} color="#10b981" />

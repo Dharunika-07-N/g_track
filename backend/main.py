@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from services.tracker import tracker_service
 
 # Import routers
-from routers import students, classrooms, assignments, submissions, analytics, hod, student_portal
+from routers import students, classrooms, assignments, submissions, analytics, hod
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,11 +25,13 @@ async def lifespan(app: FastAPI):
     # Create a default instructor for dev if none exists
     db = SessionLocal()
     if not db.query(User).first():
+        from routers.auth import hash_password
         default_user = User(
             github_username="admin",
             name="Default Instructor",
             email="admin@example.com",
-            role="hod"
+            role="hod",
+            password_hash=hash_password("admin123")
         )
         db.add(default_user)
         db.commit()
@@ -38,6 +40,9 @@ async def lifespan(app: FastAPI):
     # Start Scheduler
     from services.scheduler_service import start_scheduler
     scheduler = start_scheduler()
+    
+    # Adding the periodic student data sync job to the same scheduler
+    scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
     
     # Trigger initial update immediately in background
     asyncio.create_task(scheduled_update_all())
@@ -70,7 +75,6 @@ app.include_router(assignments.router, dependencies=[Depends(verify_token)])
 app.include_router(submissions.router, dependencies=[Depends(verify_token)])
 app.include_router(analytics.router, dependencies=[Depends(verify_token)])
 app.include_router(hod.router, dependencies=[Depends(verify_token)])
-app.include_router(student_portal.router, dependencies=[Depends(verify_token)])
 app.include_router(auth_router)
 
 def get_db():
@@ -107,12 +111,13 @@ def sync_scheduler_wrapper():
     except Exception as e:
         print(f"Error in sync_scheduler_wrapper: {e}")
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
-
-
 @app.get("/")
 def read_root():
+    # If the frontend is built, we serve the index.html from there
+    frontend_index = os.path.join("static", "index.html")
+    if os.path.exists(frontend_index):
+        from fastapi.responses import FileResponse
+        return FileResponse(frontend_index)
     return {"message": "Github Classroom Tracker API is running"}
 
 @app.get("/dashboard/stats", dependencies=[Depends(verify_token)])
@@ -217,6 +222,14 @@ def upcoming_deadlines(limit: int = 5, db: Session = Depends(get_db)):
     
     return upcoming
 
+# Serve Static Files (Frontend) if folder exists
+# Check common locations for built frontend
+STATIC_DIR = os.getenv("STATIC_DIR", "static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
+    print(f"Mounted static frontend from {STATIC_DIR}")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

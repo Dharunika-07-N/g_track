@@ -23,9 +23,14 @@ async def get_student_dashboard(payload: dict = Depends(require_role(["student"]
     
     # Get student record
     student = db.query(Student).filter(Student.email == user.email).first()
+    classroom_id = student.classroom_id if student else None
     
     # Quick stats
-    total_assignments = db.query(Assignment).count() # Simplified, should filter by classroom
+    if classroom_id:
+        total_assignments = db.query(Assignment).filter(Assignment.classroom_id == classroom_id).count()
+    else:
+        total_assignments = db.query(Assignment).count()
+        
     submissions = db.query(Submission).filter(Submission.student_id == (student.id if student else -1)).all()
     completed_count = len([s for s in submissions if s.status == "graded" or s.status == "submitted"])
     
@@ -33,7 +38,10 @@ async def get_student_dashboard(payload: dict = Depends(require_role(["student"]
     recent_logs = db.query(ActivityLog).filter(ActivityLog.student_id == (student.id if student else -1)).order_by(ActivityLog.date_str.desc()).limit(7).all()
     
     # Deadlines
-    upcoming_deadlines = db.query(Assignment).filter(Assignment.deadline > datetime.datetime.utcnow()).order_by(Assignment.deadline.asc()).limit(5).all()
+    deadline_query = db.query(Assignment).filter(Assignment.deadline > datetime.datetime.utcnow())
+    if classroom_id:
+        deadline_query = deadline_query.filter(Assignment.classroom_id == classroom_id)
+    upcoming_deadlines = deadline_query.order_by(Assignment.deadline.asc()).limit(5).all()
 
     return {
         "profile": {

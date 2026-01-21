@@ -9,9 +9,16 @@ import AnalyticsPage from './components/AnalyticsPage';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import HodDashboard from './components/dashboards/HodDashboard';
-import FacultyDashboard from './components/dashboards/FacultyDashboard';
-import StudentDashboard from './components/dashboards/StudentDashboard';
 import axios from 'axios';
+
+// Global axios interceptor for authentication
+axios.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 import {
   Github,
   Activity,
@@ -25,12 +32,6 @@ import {
 } from 'lucide-react';
 
 import { API_BASE } from './config';
-
-const DashboardSwitcher = ({ role }) => {
-  if (role === 'admin' || role === 'hod') return <HodDashboard />;
-  if (role === 'faculty') return <FacultyDashboard />;
-  return <StudentDashboard />;
-};
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -88,21 +89,14 @@ function App() {
         <div className="layout">
           <CurtainNav onLogout={handleLogout} />
           <Routes>
-            <Route path="/" element={<DashboardSwitcher role={userRole} />} />
+            <Route path="/" element={<HodDashboard />} />
             <Route path="/dashboard" element={<Navigate to="/" />} />
             <Route path="/classrooms" element={<ClassroomList />} />
             <Route path="/classrooms/:id" element={<ClassroomDetail />} />
+            <Route path="/students" element={<StudentsPage />} />
+            <Route path="/assignments" element={<AssignmentsPage />} />
             <Route path="/analysis" element={<AnalyticsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
-
-            {/* Conditional Routes based on Role */}
-            {(userRole === 'admin' || userRole === 'hod' || userRole === 'faculty') && (
-              <>
-                <Route path="/students" element={<StudentsPage />} />
-                <Route path="/assignments" element={<AssignmentsPage />} />
-              </>
-            )}
-
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

@@ -19,11 +19,9 @@ class RegisterRequest(BaseModel):
     github_username: str
     email: str
     password: str
-    role: str = "student"  # student, faculty, hod
+    role: str = "hod"  # Only hod/admin allowed for login now
     name: Optional[str] = None
     department: Optional[str] = None
-    subject_name: Optional[str] = None
-    student_id: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: str
@@ -59,66 +57,50 @@ def create_token(user_id: int, role: str) -> str:
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-        
-        # Additional check to ensure ONLY the authorized user can use the app
-        db = SessionLocal()
-        try:
-            user = db.query(User).filter(User.id == payload["user_id"]).first()
-            if not user or user.email != "dharunikaktm@gmail.com":
-                raise HTTPException(status_code=403, detail="Access Restricted: Only authorized personnel allowed.")
-        finally:
-            db.close()
-            
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    except HTTPException:
-        raise
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid authentication")
 
 @router.post("/register", response_model=TokenResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    # Registration disabled as per user request
-    raise HTTPException(status_code=403, detail="Registration is currently disabled.")
+    existing = db.query(User).filter(User.email == req.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user = User(
+        github_username=req.github_username,
+        email=req.email,
+        password_hash=hash_password(req.password),
+        role="hod", # Force HOD role for all new registrations
+        name=req.name,
+        department=req.department,
+        created_at=datetime.utcnow()
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    
+    token = create_token(user.id, user.role)
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        role=user.role,
+        user_id=user.id
+    )
 
 @router.post("/login", response_model=TokenResponse)
 def login(req: LoginRequest, db: Session = Depends(get_db)):
-    # STRICT ACCESS CONTROL: Only allowed user
-    AUTHORIZED_EMAIL = "dharunikaktm@gmail.com"
-    AUTHORIZED_PASS = "12345"
-    AUTHORIZED_ROLE = "hod"
-
-    if req.email != AUTHORIZED_EMAIL or req.password != AUTHORIZED_PASS:
-        raise HTTPException(status_code=403, detail="Access Restricted: Only authorized personnel allowed.")
-
-    user = db.query(User).filter(User.email == AUTHORIZED_EMAIL).first()
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # If the user doesn't exist in the DB, we might want to create them or 
-    # mock them. To ensure the app works (which usually expects a DB user), 
-    # we'll look for them.
-    if not user:
-        # Create the authorized user if they don't exist
-        user = User(
-            email=AUTHORIZED_EMAIL,
-            password_hash=hash_password(AUTHORIZED_PASS),
-            role=AUTHORIZED_ROLE,
-            name="HOD Dharunika",
-            github_username="dharunika", # placeholder
-            created_at=datetime.utcnow()
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    elif user.role != AUTHORIZED_ROLE:
-        # Force the role to HOD if it's different
-        user.role = AUTHORIZED_ROLE
-        user.password_hash = hash_password(AUTHORIZED_PASS)
-        db.commit()
-        db.refresh(user)
-
+    if user.role not in ['admin', 'hod']:
+        raise HTTPException(status_code=403, detail="Access denied. Only HOD/Admin can log in.")
+    
     token = create_token(user.id, user.role)
     return TokenResponse(
         access_token=token,
@@ -136,5 +118,6 @@ def get_current_user(payload: dict = Depends(verify_token), db: Session = Depend
         "id": user.id,
         "email": user.email,
         "role": user.role,
-        "github_username": user.github_username
+        "github_username": user.github_username,
+        "name": user.name
     }

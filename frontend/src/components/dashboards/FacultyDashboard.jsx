@@ -23,7 +23,9 @@ export default function FacultyDashboard() {
         const fetchData = async () => {
             try {
                 const [statsRes, classRes] = await Promise.all([
-                    axios.get(`${API_BASE}/dashboard/stats?period=monthly`),
+                    axios.get(`${API_BASE}/dashboard/stats?period=monthly`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                    }),
                     axios.get(`${API_BASE}/classrooms`, {
                         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                     })
@@ -38,6 +40,8 @@ export default function FacultyDashboard() {
         };
         fetchData();
     }, []);
+
+    if (loading) return <div className="main-content">Loading...</div>;
 
     return (
         <div className="main-content">

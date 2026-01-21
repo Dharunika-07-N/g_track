@@ -13,86 +13,50 @@ class NotificationService:
         self.password = os.getenv("SMTP_PASSWORD")
         self.from_email = os.getenv("SMTP_FROM_EMAIL", self.user)
         self.from_name = os.getenv("SMTP_FROM_NAME", "GitHub Activity Tracker")
-        # HARD DISABLED as per user request
-        self.enabled = False
+        # HARD DISABLED as per user request - SYSTEM LOCKDOWN
+        self.enabled = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", "True").lower() == "true"
 
-    
-    def send_welcome_email(self, student_name: str, student_email: str, temp_password: str, login_url: str = "http://localhost:5173/login"):
-        # Skip sending email if notifications are disabled
-        if not self.enabled:
-            print(f"Email notifications disabled - Skipping welcome email to {student_email}")
-            return True
+    def _send_email(self, to_email: str, subject: str, html_content: str):
+        if not self.enabled or not self.user or not self.password:
+            print(f"Skipping email to {to_email} (Service disabled or missing credentials)")
+            return False
         
-        subject = "Welcome to GitHub Activity Tracker"
-        body = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; color: #333;">
-            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-                <h2 style="color: #2563eb;">Welcome, {student_name}!</h2>
-                <p>Your account has been successfully created on the GitHub Activity Tracker.</p>
-                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 6px; margin: 20px 0;">
-                    <p style="margin: 0;"><strong>Username:</strong> {student_email}</p>
-                    <p style="margin: 10px 0 0;"><strong>Temporary Password:</strong> {temp_password}</p>
-                </div>
-                <p>Please log in and change your password immediately.</p>
-                <div style="text-align: center; margin-top: 25px;">
-                    <a href="{login_url}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Login to Dashboard</a>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        # Ensure HTML is sent
         try:
             msg = MIMEMultipart()
-            msg['From'] = f"{self.from_name} <{self.from_email}>"
-            msg['To'] = student_email
+            msg['From'] = f"{self.from_name} <{self.user}>"
+            msg['To'] = to_email
             msg['Subject'] = subject
-            msg.attach(MIMEText(body, 'html'))
+            msg.attach(MIMEText(html_content, 'html'))
             
-            with smtplib.SMTP(self.host, self.port) as server:
-                server.starttls()
-                server.login(self.user, self.password)
-                server.send_message(msg)
+            server = smtplib.SMTP(self.host, self.port)
+            server.starttls()
+            server.login(self.user, self.password)
+            server.send_message(msg)
+            server.quit()
             return True
         except Exception as e:
-            print(f"Error sending welcome email to {student_email}: {e}")
+            print(f"Failed to send email to {to_email}: {e}")
             return False
+
+    def send_welcome_email(self, student_name: str, student_email: str, temp_password: str, login_url: str = "http://localhost:5173/login"):
+        subject = f"Welcome to {self.from_name}"
+        html = f"""
+        <h2>Hello {student_name},</h2>
+        <p>You have been registered for the GitHub Activity Tracker.</p>
+        <p><b>Login Credentials:</b><br>
+        Email: {student_email}<br>
+        Temporary Password: {temp_password}</p>
+        <p>Please login at <a href="{login_url}">{login_url}</a> and change your password.</p>
+        """
+        return self._send_email(student_email, subject, html)
 
     def send_assignment_reminder(self, student_name: str, student_email: str, assignment_title: str, deadline: datetime):
-        # Skip sending email if notifications are disabled
-        if not self.enabled:
-            print(f"Email notifications disabled - Skipping reminder email to {student_email}")
-            return True
-        
-        subject = f"Reminder: {assignment_title} Due Soon"
-        body = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; color: #333;">
-            <div style="border-left: 4px solid #f59e0b; padding-left: 15px;">
-                <h3>Assignment Deadline Reminder</h3>
-                <p>Hi {student_name},</p>
-                <p>This is a reminder that <strong>{assignment_title}</strong> is due on:</p>
-                <p style="font-size: 1.1em; font-weight: bold; color: #dc2626;">{deadline.strftime('%B %d, %Y at %I:%M %p')}</p>
-                <p>Please ensure you have pushed your code to GitHub before the deadline.</p>
-            </div>
-        </body>
-        </html>
+        subject = f"Reminder: {assignment_title} is due soon"
+        html = f"""
+        <h2>Hello {student_name},</h2>
+        <p>This is a reminder that the assignment <b>{assignment_title}</b> is due on {deadline.strftime('%Y-%m-%d %H:%M')}.</p>
+        <p>Please ensure you have submitted your work via the dashboard.</p>
         """
-        try:
-            msg = MIMEMultipart()
-            msg['From'] = f"{self.from_name} <{self.from_email}>"
-            msg['To'] = student_email
-            msg['Subject'] = subject
-            msg.attach(MIMEText(body, 'html'))
-            
-            with smtplib.SMTP(self.host, self.port) as server:
-                server.starttls()
-                server.login(self.user, self.password)
-                server.send_message(msg)
-            return True
-        except Exception as e:
-            print(f"Error sending reminder to {student_email}: {e}")
-            return False
+        return self._send_email(student_email, subject, html)
 
 notification_service = NotificationService()
