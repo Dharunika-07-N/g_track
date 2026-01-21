@@ -27,35 +27,44 @@ const StudentsPage = () => {
         classroom_id: ''
     });
 
+    const fetchStudents = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            let url = `${API_BASE}/students/?period=${period}&limit=100`;
+            if (period === 'custom' && startDate && endDate) {
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+            }
+            const resp = await axios.get(url);
+            // Safety check: ensure we got an array
+            if (Array.isArray(resp.data)) {
+                setStudents(resp.data);
+            } else {
+                console.error("Expected array from students API, got:", resp.data);
+                setStudents([]);
+            }
+        } catch (err) {
+            console.error("Failed to fetch students:", err);
+            setStudents([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [period, startDate, endDate, API_BASE]);
+
     const fetchClassrooms = React.useCallback(async () => {
         try {
             const resp = await axios.get(`${API_BASE}/classrooms/`);
-            setClassrooms(resp.data);
+            if (Array.isArray(resp.data)) {
+                setClassrooms(resp.data);
+            }
         } catch (err) {
             console.error("Failed to fetch classrooms", err);
         }
     }, [API_BASE]);
 
     useEffect(() => {
-        const fetchStudents = async () => {
-            setLoading(true);
-            try {
-                let url = `${API_BASE}/students/?period=${period}&limit=100`;
-                if (period === 'custom' && startDate && endDate) {
-                    url += `&start_date=${startDate}&end_date=${endDate}`;
-                }
-                const resp = await axios.get(url);
-                setStudents(resp.data);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchStudents();
         fetchClassrooms();
-    }, [period, startDate, endDate, fetchClassrooms, API_BASE]);
+    }, [fetchStudents, fetchClassrooms]);
 
     const setPeriod = (p) => {
         if (p === 'custom') {
@@ -168,10 +177,10 @@ const StudentsPage = () => {
         }
     };
 
-    const filteredStudents = students.filter(s =>
+    const filteredStudents = (Array.isArray(students) ? students : []).filter(s =>
         s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.github_username?.toLowerCase().includes(searchTerm.toLowerCase())
-    ).filter(s => s.status !== 'archived'); // By default hide archived unless we mean "remove all" from view
+    ).filter(s => s.status !== 'archived');
 
     return (
         <div className="main-content">
@@ -304,6 +313,8 @@ const StudentsPage = () => {
                                     <th>Score</th>
                                     <th>Commits</th>
                                     <th>PRs</th>
+                                    <th>Repos</th>
+                                    <th>Events</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -338,6 +349,8 @@ const StudentsPage = () => {
                                         </td>
                                         <td>{s.total_commits}</td>
                                         <td>{s.pull_requests}</td>
+                                        <td>{s.repo_count}</td>
+                                        <td>{s.total_events}</td>
                                         <td>
                                             <span className={`badge badge-${s.status === 'active' ? 'success' : 'warning'}`}>
                                                 {s.status}

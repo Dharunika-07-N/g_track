@@ -120,36 +120,7 @@ def read_root():
         return FileResponse(frontend_index)
     return {"message": "Github Classroom Tracker API is running"}
 
-# SPA Fallback: Serve index.html for all non-API routes
-@app.get("/{full_path:path}")
-async def spa_fallback(full_path: str):
-    """
-    Catch-all route for SPA. Serves index.html for all routes that:
-    - Don't start with /auth, /api, /dashboard, /students, /classrooms, /assignments, /submissions, /analytics, /hod
-    - Don't exist as static files
-    This allows React Router to handle client-side routing.
-    """
-    from fastapi.responses import FileResponse
-    
-    # List of API prefixes that should NOT fallback to index.html
-    api_prefixes = ['auth', 'api', 'dashboard', 'students', 'classrooms', 
-                    'assignments', 'submissions', 'analytics', 'hod', 'templates']
-    
-    # If the path starts with an API prefix, let FastAPI handle it normally (will 404 if not found)
-    if any(full_path.startswith(prefix) for prefix in api_prefixes):
-        raise HTTPException(status_code=404, detail="Not found")
-    
-    # Check if it's a static file request
-    static_file = os.path.join("static", full_path)
-    if os.path.exists(static_file) and os.path.isfile(static_file):
-        return FileResponse(static_file)
-    
-    # Otherwise, serve index.html for SPA routing
-    frontend_index = os.path.join("static", "index.html")
-    if os.path.exists(frontend_index):
-        return FileResponse(frontend_index)
-    
-    raise HTTPException(status_code=404, detail="Frontend not built")
+
 
 @app.get("/dashboard/stats", dependencies=[Depends(verify_token)])
 def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
@@ -228,18 +199,24 @@ def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depen
     
     leaderboard = []
     for r in query:
-        score = (r.commits * 2) + (r.prs * 3) + (r.active_days * 1)
+        # Handle None values from sum queries
+        commits = r.commits or 0
+        prs = r.prs or 0
+        active_days = r.active_days or 0
+        
+        score = (commits * 2) + (prs * 3) + (active_days * 1)
         leaderboard.append({
             "id": r.id,
             "name": r.name or r.github_username,
             "github_username": r.github_username,
             "avatar_url": r.avatar_url,
-            "commits": r.commits,
-            "prs": r.prs,
+            "commits": commits,
+            "prs": prs,
             "score": score
         })
     
-    leaderboard.sort(key=lambda x: x["score"], reverse=True)
+    # Sort primarily by commits, then by score
+    leaderboard.sort(key=lambda x: (x["commits"], x["score"]), reverse=True)
     return leaderboard
 
 @app.get("/dashboard/upcoming", dependencies=[Depends(verify_token)])
@@ -253,8 +230,38 @@ def upcoming_deadlines(limit: int = 5, db: Session = Depends(get_db)):
     
     return upcoming
 
-# Note: Static files are served via the SPA fallback route above
-# This allows proper handling of React Router client-side routes
+# SPA Fallback: Serve index.html for all non-API routes
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """
+    Catch-all route for SPA. Serves index.html for all routes that:
+    - Don't start with critical API prefixes
+    - Don't exist as static files
+    This allows React Router to handle client-side routing.
+    """
+    from fastapi.responses import FileResponse
+    
+    # If this is a naked path request or common client-side route, serve index.html
+    # We check static folder content first
+    static_file = os.path.join("static", full_path)
+    if os.path.exists(static_file) and os.path.isfile(static_file):
+        return FileResponse(static_file)
+    
+    # List of API prefixes that should NOT fallback to index.html to avoid 
+    # returning HTML for failed API calls (which breaks JSON parsing in frontend)
+    api_prefixes = ['auth', 'api', 'dashboard', 'students', 'classrooms', 
+                    'assignments', 'submissions', 'analytics', 'hod', 'templates']
+    
+    if any(full_path.startswith(prefix) for prefix in api_prefixes):
+        raise HTTPException(status_code=404, detail="API route not found")
+    
+    # Serve index.html for SPA routing
+    frontend_index = os.path.join("static", "index.html")
+    if os.path.exists(frontend_index):
+        return FileResponse(frontend_index)
+    
+    return {"message": "Github Classroom Tracker API is running (Static frontend not found)"}
+
 
 
 if __name__ == "__main__":

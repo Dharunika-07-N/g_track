@@ -85,12 +85,14 @@ def export_full_history(
                 "PRs": prs,
                 "Issues": issues,
                 "Reviews": reviews,
+                "Repo Count": s.repo_count,
+                "Total Events": (commits + prs + issues + reviews),
                 "Active Days": active_days,
                 "Activity Score": score,
                 "Status": s.status
             })
-        # Sort by Activity Score Descending (Ranking Wise)
-        export_data.sort(key=lambda x: x["Activity Score"], reverse=True)
+        # Sort by Commits Descending (highest commit first), then by Activity Score
+        export_data.sort(key=lambda x: (x["Commits"], x["Activity Score"]), reverse=True)
         
         # Add Rank column and reorder fields to put Rank first
         ranked_export_data = []

@@ -79,16 +79,18 @@ async def update_student_data(student_id: int):
                 func.count(ActivityLog.id).label("active_days")
             ).filter(ActivityLog.student_id == student.id).first()
 
-            # If Search API total is higher than our log sum (due to history limits), use the search total
+            # Ensure all metrics are integers, avoiding NoneType errors
             student.total_commits = max(exact_total, total_stats.commits or 0)
             student.pull_requests = total_stats.prs or 0
             student.issues = total_stats.issues or 0
             student.reviews = total_stats.reviews or 0
-            student.repo_count = data["stats"]["repo_count"]
-            student.total_events = student.total_commits + student.pull_requests + student.issues + student.reviews
+            student.repo_count = data["stats"].get("repo_count", 0)
+            student.total_events = (student.total_commits or 0) + (student.pull_requests or 0) + (student.issues or 0) + (student.reviews or 0)
             student.active_days = total_stats.active_days or 0
             student.last_updated = datetime.utcnow()
-            student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
+            
+            # Safe calculation
+            student.activity_score = ((student.total_commits or 0) * 2) + ((student.pull_requests or 0) * 3) + ((student.active_days or 0) * 1)
             
             print(f"Sync complete for {clean_username}. Total Commits: {student.total_commits} (Exact: {exact_total}), Score: {student.activity_score}")
         else:
@@ -232,7 +234,8 @@ def read_students(
             "active_days": active_days, "last_updated": s.last_updated,
             "classroom_id": s.classroom_id, "student_id": s.student_id, "email": s.email, "status": s.status
         })
-    results.sort(key=lambda x: x["activity_score"], reverse=True)
+    # Sort by Commits Descending (highest commit first), then by Score
+    results.sort(key=lambda x: (x["total_commits"], x["activity_score"]), reverse=True)
     return results[skip:skip+limit]
 
 @router.post("/{student_id}/refresh")
