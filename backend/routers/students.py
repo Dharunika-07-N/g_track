@@ -21,94 +21,74 @@ def get_db():
         db.close()
 
 async def update_student_data(student_id: int):
+    """
+    Updated sync function that uses the corrected API calls.
+    """
     db = SessionLocal()
     try:
         student = db.query(Student).filter(Student.id == student_id).first()
-        if not student: return
+        if not student or not student.github_username:
+            return
         
-        print(f"--- Starting Sync for student: {student.github_username} ---")
+        username = student.github_username.strip().rstrip('/').strip('@').split('/')[-1]
         
-        # GitHub Sync
-        clean_username = student.github_username.strip().strip('@').split('/')[-1]
-        data = await tracker_service.analyze_user(clean_username)
+        print(f"--- Starting Sync for student: {username} ---")
         
-        if data:
-            print(f"Data received for {clean_username}: {data['stats']}")
-            student.name = student.name or data["name"]
-            student.avatar_url = data["avatar_url"]
-            student.profile_url = data["profile_url"]
+        # 1. Get stats for "all time" (or year) period to update main profile
+        stats = await tracker_service.get_complete_student_stats(username, period="year")
+        
+        # 2. Fetch avatar and profile info manually if missing
+        if not student.avatar_url or not student.profile_url:
+            async with httpx.AsyncClient(headers=tracker_service.headers, timeout=10.0) as client:
+                resp = await client.get(f"{tracker_service.base_url}/users/{username}")
+                if resp.status_code == 200:
+                    user_info = resp.json()
+                    student.name = student.name or user_info.get("name") or username
+                    student.avatar_url = user_info.get("avatar_url")
+                    student.profile_url = user_info.get("html_url")
+        
+        # 3. Update student record with fresh data from stats
+        student.total_commits = stats["total_commits"]
+        student.pull_requests = stats["pull_requests"]
+        student.repo_count = stats["repo_count"]
+        student.active_days = stats["active_days"]
+        student.activity_score = stats["activity_score"]
+        student.last_updated = datetime.utcnow()
+        
+        # 4. Update daily breakdown for the last 7 days
+        daily_counts = await tracker_service.get_daily_commit_counts(username, days=7)
+        
+        for date_str, count in daily_counts.items():
+            log = db.query(ActivityLog).filter(
+                ActivityLog.student_id == student_id,
+                ActivityLog.date_str == date_str
+            ).first()
             
-            # Use standard event-based stats first (provides detail)
-            daily_stats = data.get("daily_stats", {})
-            for day_str, d_data in daily_stats.items():
-                log = db.query(ActivityLog).filter(ActivityLog.student_id == student.id, ActivityLog.date_str == day_str).first()
-                if not log:
-                    log = ActivityLog(student_id=student.id, date_str=day_str)
-                    db.add(log)
-                log.commits_count = d_data["commits"]
-                log.pr_count = d_data["prs"]
-                log.issue_count = d_data["issues"]
-                log.review_count = d_data["reviews"]
-            
-            # SUPPLEMENT with Exact Search API for the last 7 days to ensure 'Exactly Real' rates
-            # This fixes inaccuracies caused by PushEvents vs Author dates
-            print(f"Backfilling last 7 days with exact counts for {clean_username}...")
-            exact_counts = await tracker_service.get_daily_commit_counts(clean_username, days=7)
-            for day_str, count in exact_counts.items():
-                log = db.query(ActivityLog).filter(ActivityLog.student_id == student.id, ActivityLog.date_str == day_str).first()
-                if not log:
-                    log = ActivityLog(student_id=student.id, date_str=day_str)
-                    db.add(log)
-                # If Search API found more (or different) commits than Events, trust Search API for 'exactly real' numbers
-                if count > log.commits_count:
-                    log.commits_count = count
-            
-            db.commit()
-            
-            # Fetch EXACT Total for the last year to ensure the overall total matches GitHub profile
-            yearly_start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y-%m-%d")
-            yearly_end = datetime.utcnow().strftime("%Y-%m-%d")
-            exact_total = await tracker_service.get_exact_commit_count(clean_username, yearly_start, yearly_end)
-            
-            # Recalculate totals from the DB logs for periods
-            total_stats = db.query(
-                func.sum(ActivityLog.commits_count).label("commits"),
-                func.sum(ActivityLog.pr_count).label("prs"),
-                func.sum(ActivityLog.issue_count).label("issues"),
-                func.sum(ActivityLog.review_count).label("reviews"),
-                func.count(ActivityLog.id).label("active_days")
-            ).filter(ActivityLog.student_id == student.id).first()
+            if log:
+                log.commits_count = count
+            else:
+                log = ActivityLog(
+                    student_id=student_id,
+                    date_str=date_str,
+                    commits_count=count
+                )
+                db.add(log)
+        
+        db.commit()
+        print(f"Sync complete for {username}. Total Commits: {student.total_commits}, Score: {student.activity_score}")
 
-            # Ensure all metrics are integers, avoiding NoneType errors
-            student.total_commits = max(exact_total, total_stats.commits or 0)
-            student.pull_requests = total_stats.prs or 0
-            student.issues = total_stats.issues or 0
-            student.reviews = total_stats.reviews or 0
-            student.repo_count = data["stats"].get("repo_count", 0)
-            student.total_events = (student.total_commits or 0) + (student.pull_requests or 0) + (student.issues or 0) + (student.reviews or 0)
-            student.active_days = total_stats.active_days or 0
-            student.last_updated = datetime.utcnow()
-            
-            # Safe calculation
-            student.activity_score = ((student.total_commits or 0) * 2) + ((student.pull_requests or 0) * 3) + ((student.active_days or 0) * 1)
-            
-            print(f"Sync complete for {clean_username}. Total Commits: {student.total_commits} (Exact: {exact_total}), Score: {student.activity_score}")
-        else:
-            print(f"FAILED to fetch data for {clean_username}. Is GITHUB_TOKEN set correctly?")
-        
         # LeetCode Sync
         user_record = db.query(User).filter(User.email == student.email).first()
         if user_record and user_record.leetcode_username:
-            print(f"Fetching LeetCode data for {user_record.leetcode_username}...")
             lc_stats = await leetcode_service.get_user_stats(user_record.leetcode_username)
             if lc_stats:
                 student.leetcode_solved = lc_stats["total_solved"]
                 student.leetcode_rating = lc_stats["ranking"] or 0
-                print(f"LeetCode status updated for {user_record.leetcode_username}")
-        
-        db.commit()
+                db.commit()
+
     except Exception as e:
         print(f"Error updating student {student_id}: {str(e)}")
+        db.rollback()
     finally:
         db.close()
 
@@ -184,7 +164,7 @@ async def add_student(student: StudentCreate, background_tasks: BackgroundTasks,
     return new_student
 
 @router.get("/", response_model=List[StudentRead])
-def read_students(
+async def read_students(
     classroom_id: Optional[int] = None, 
     period: str = "monthly", 
     start_date: Optional[str] = None,
@@ -193,49 +173,63 @@ def read_students(
     limit: int = 100, 
     db: Session = Depends(get_db)
 ):
-    # Handle custom date range
-    if period == "custom" and start_date and end_date:
-        cutoff_start = start_date
-        cutoff_end = end_date
-    else:
-        cutoff_start = get_period_cutoff(period)
-        cutoff_end = datetime.utcnow().strftime("%Y-%m-%d")
-    
-    query = db.query(Student)
-    if classroom_id: query = query.filter(Student.classroom_id == classroom_id)
+    """
+    Returns students with stats filtered by period.
+    Period can be: "all", "year", "monthly", "weekly", "today" or "custom"
+    """
+    query = db.query(Student).filter(Student.status == "active")
+    if classroom_id:
+        query = query.filter(Student.classroom_id == classroom_id)
     students = query.all()
+    
+    # Map periods to match GitHubTrackerService expectation
+    tracker_period = "all"
+    if period == "weekly": tracker_period = "week"
+    elif period == "monthly": tracker_period = "month"
+    elif period == "year": tracker_period = "year"
+    
     results = []
     for s in students:
-        logs_summary = db.query(
-            func.sum(ActivityLog.commits_count).label("commits"),
-            func.sum(ActivityLog.pr_count).label("prs"),
-            func.sum(ActivityLog.issue_count).label("issues"),
-            func.sum(ActivityLog.review_count).label("reviews"),
-            func.count(ActivityLog.id).label("active_days")
-        ).filter(
-            ActivityLog.student_id == s.id, 
-            ActivityLog.date_str >= cutoff_start,
-            ActivityLog.date_str <= cutoff_end
-        ).first()
+        if not s.github_username:
+            continue
         
-        commits = logs_summary.commits or 0
-        
-        prs = logs_summary.prs or 0
-        issues = logs_summary.issues or 0
-        reviews = logs_summary.reviews or 0
-        active_days = logs_summary.active_days or 0
+        # Get stats for the requested period from Tracker Service (Fresh)
+        # Handle custom date range if needed
+        if period == "custom" and start_date and end_date:
+            commits = await tracker_service.get_commit_count_for_period(s.github_username, start_date, end_date)
+            prs = await tracker_service.get_pull_request_count(s.github_username, start_date, end_date)
+            active_days = await tracker_service.get_active_days_count(s.github_username, start_date, end_date)
+            repos = s.repo_count # Repo count is overall
+        else:
+            stats = await tracker_service.get_complete_student_stats(s.github_username, period=tracker_period)
+            commits = stats["total_commits"]
+            prs = stats["pull_requests"]
+            repos = stats["repo_count"]
+            active_days = stats["active_days"]
         
         results.append({
-            "id": s.id, "name": s.name, "github_username": s.github_username,
-            "profile_url": s.profile_url, "avatar_url": s.avatar_url,
-            "total_commits": commits, "pull_requests": prs, "issues": issues, "reviews": reviews,
-            "repo_count": s.repo_count, "total_events": commits + prs + issues + reviews,
+            "id": s.id, 
+            "name": s.name, 
+            "github_username": s.github_username,
+            "profile_url": s.profile_url, 
+            "avatar_url": s.avatar_url,
+            "total_commits": commits, 
+            "pull_requests": prs, 
+            "issues": 0, # Search API issues not implemented yet, but keeping for schema compat
+            "reviews": 0,
+            "repo_count": repos, 
+            "total_events": commits + prs,
             "activity_score": (commits * 2) + (prs * 3) + (active_days * 1),
-            "active_days": active_days, "last_updated": s.last_updated,
-            "classroom_id": s.classroom_id, "student_id": s.student_id, "email": s.email, "status": s.status
+            "active_days": active_days, 
+            "last_updated": s.last_updated,
+            "classroom_id": s.classroom_id, 
+            "student_id": s.student_id, 
+            "email": s.email, 
+            "status": s.status
         })
-    # Sort by Commits Descending (highest commit first), then by Score
-    results.sort(key=lambda x: (x["total_commits"], x["activity_score"]), reverse=True)
+    
+    # Sort by Activity Score Descending
+    results.sort(key=lambda x: x["activity_score"], reverse=True)
     return results[skip:skip+limit]
 
 @router.post("/{student_id}/refresh")

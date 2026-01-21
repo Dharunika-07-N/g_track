@@ -1,232 +1,256 @@
 import httpx
 from datetime import datetime, timedelta
-from collections import defaultdict
 from typing import Dict, List, Optional
-import asyncio
-
 import os
 from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
 class GitHubTracker:
     def __init__(self, token: Optional[str] = None):
         self.token = token or os.getenv("GITHUB_TOKEN")
+        self.base_url = "https://api.github.com"
         self.headers = {
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'GithubActivityTracker/1.0'
+            "Authorization": f"token {self.token}",
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "GithubActivityTracker/1.0"
         }
-        if self.token:
-            self.headers['Authorization'] = f'token {self.token}'
-        self.base_url = 'https://api.github.com'
+        self.search_headers = {
+            "Authorization": f"token {self.token}",
+            "Accept": "application/vnd.github.cloak-preview+json",  # Required for commit search
+            "User-Agent": "GithubActivityTracker/1.0"
+        }
     
-    async def get_user_info(self, client: httpx.AsyncClient, username: str) -> Dict:
+    async def get_owned_repo_count(self, username: str) -> int:
+        """Gets only owned repos (not forks)."""
         try:
-            resp = await client.get(f"{self.base_url}/users/{username}")
-            if resp.status_code == 200:
-                return resp.json()
-            elif resp.status_code == 404:
-                return {"error": "User not found"}
-            elif resp.status_code == 403:
-                # Check for rate limiting
-                if resp.headers.get("X-RateLimit-Remaining") == "0":
-                    reset_time = resp.headers.get("X-RateLimit-Reset")
-                    return {"error": "Rate limit exceeded", "reset_at": reset_time}
-                return {"error": "Access forbidden"}
-            return {"error": f"Status {resp.status_code}"}
+            async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+                all_repos = []
+                page = 1
+                
+                # GitHub paginates at 100 per page, we need to fetch all pages
+                while True:
+                    resp = await client.get(
+                        f"{self.base_url}/users/{username}/repos",
+                        params={"type": "owner", "per_page": 100, "page": page}
+                    )
+                    
+                    if resp.status_code != 200:
+                        break
+                    
+                    repos = resp.json()
+                    if not repos:  # No more repos
+                        break
+                    
+                    all_repos.extend(repos)
+                    page += 1
+                    
+                    # Safety check to avoid infinite loops
+                    if page > 10:  # Max 1000 repos
+                        break
+                
+                # Exclude forks
+                owned_repos = [repo for repo in all_repos if not repo.get("fork")]
+                return len(owned_repos)
+                
         except Exception as e:
-            return {"error": str(e)}
-
-    async def get_user_events(self, client: httpx.AsyncClient, username: str, days: int = 365) -> List[Dict]:
-        events = []
-        page = 1
-        cutoff = datetime.utcnow() - timedelta(days=days)
-        
-        while True:
-            try:
-                endpoint = f"{self.base_url}/users/{username}/events" if self.token else f"{self.base_url}/users/{username}/events/public"
-                resp = await client.get(
-                    endpoint,
-                    params={'page': page, 'per_page': 100}
-                )
-                
-                if resp.status_code != 200:
-                    break
-                    
-                data = resp.json()
-                if not data:
-                    break
-                
-                older_events_found = False
-                for event in data:
-                    created_at = datetime.strptime(event['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-                    if created_at >= cutoff:
-                        events.append(event)
-                    else:
-                        older_events_found = True
-                
-                if older_events_found or len(data) < 100:
-                    break
-                
-                page += 1
-                if page > 10: # Increased safety break to get more events if available
-                    break
-            except Exception as e:
-                print(f"Error fetching events: {e}")
-                break
-                
-        return events
-
-    async def analyze_user(self, username: str) -> Dict:
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            user_info = await self.get_user_info(client, username)
-            if "error" in user_info:
-                return None
-            
-            # Fetch as much history as GitHub Events allows (usually 90 days)
-            events = await self.get_user_events(client, username, days=365)
-            
-            stats = {
-                "commits": 0,
-                "pull_requests": 0,
-                "issues": 0,
-                "reviews": 0,
-                "repos_contributed_to": set(),
-                "total_events": len(events),
-                "active_dates": set()
-            }
-            
-            # Dictionary to store daily breakdowns: { 'YYYY-MM-DD': { 'commits': 0, ... } }
-            daily_stats = defaultdict(lambda: {"commits": 0, "prs": 0, "issues": 0, "reviews": 0})
-            
-            for event in events:
-                etype = event.get("type")
-                repo_name = event.get("repo", {}).get("name")
-                if repo_name:
-                    stats["repos_contributed_to"].add(repo_name)
-                
-                created_at = event.get("created_at")
-                if not created_at:
-                    continue
-                
-                date_key = created_at[:10] # YYYY-MM-DD
-                stats["active_dates"].add(date_key)
-                    
-                if etype == "PushEvent":
-                    payload = event.get("payload", {})
-                    # For PushEvent, distinct_size represents commits new to the repo
-                    # but it's still safer to check the actual commits list if available
-                    # to ensure we don't count merged commits from others.
-                    actual_commits = payload.get("distinct_size", 0)
-                    if actual_commits == 0 and payload.get("size", 0) > 0:
-                        # Fallback to size if distinct_size is missing (unusual)
-                        actual_commits = payload.get("size", 0)
-                    
-                    # If we have the commits list, we can check if they are actually the user's
-                    # but Event API only shows up to 20 commits.
-                    
-                    stats["commits"] += actual_commits
-                    daily_stats[date_key]["commits"] += actual_commits
-                elif etype == "PullRequestEvent":
-                    # Only count as a contribution if it's opened or merged
-                    action = event.get("payload", {}).get("action")
-                    if action in ["opened", "closed", "reopened", "synchronize"]:
-                        stats["pull_requests"] += 1
-                        daily_stats[date_key]["prs"] += 1
-                elif etype == "IssuesEvent":
-                    stats["issues"] += 1
-                    daily_stats[date_key]["issues"] += 1
-                elif etype == "PullRequestReviewEvent":
-                    stats["reviews"] += 1
-                    daily_stats[date_key]["reviews"] += 1
-            
-            return {
-                "username": user_info.get("login"),
-                "name": user_info.get("name") or user_info.get("login"),
-                "avatar_url": user_info.get("avatar_url"),
-                "profile_url": user_info.get("html_url"),
-                "daily_stats": dict(daily_stats),
-                "stats": {
-                    "commits": stats["commits"],
-                    "pull_requests": stats["pull_requests"],
-                    "issues": stats["issues"],
-                    "reviews": stats["reviews"],
-                    "repo_count": len(stats["repos_contributed_to"]),
-                    "total_events": stats["total_events"],
-                    "active_days": len(stats["active_dates"])
-                }
-            }
-
-    async def get_exact_commit_count(self, username: str, start_date: str, end_date: str) -> int:
+            print(f"Error fetching repos for {username}: {e}")
+            return 0
+    
+    async def get_commit_count_for_period(
+        self, 
+        username: str, 
+        start_date: str,  # Format: YYYY-MM-DD
+        end_date: str = None  # Format: YYYY-MM-DD
+    ) -> int:
         """
-        Uses GitHub Search API to get the EXACT number of commits for a user in a period.
-        Matching the GitHub contribution graph logic (author-date).
+        Gets accurate commit count using Search API.
+        IMPORTANT: This only counts commits where the user is the AUTHOR.
         """
         if not self.token:
             return 0
-            
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            query = f"author:{username} author-date:{start_date}..{end_date}"
-            try:
+        
+        try:
+            async with httpx.AsyncClient(headers=self.search_headers, timeout=15.0) as client:
+                # Build the search query
+                if not end_date:
+                    end_date = datetime.utcnow().strftime("%Y-%m-%d")
+                
+                # GitHub Search API uses author-date (when commit was originally made)
+                query = f"author:{username} author-date:{start_date}..{end_date}"
+                
                 resp = await client.get(
                     f"{self.base_url}/search/commits",
-                    params={"q": query}
+                    params={"q": query, "per_page": 1}  # We only need the count
                 )
+                
                 if resp.status_code == 200:
                     return resp.json().get("total_count", 0)
-                elif resp.status_code == 422: # Often means range is invalid or user not found
+                elif resp.status_code == 422:
+                    print(f"Invalid date range for {username}: {start_date} to {end_date}")
                     return 0
-                return 0
-            except Exception:
-                return 0
-
-    async def get_daily_commit_counts(self, username: str, days: int = 7) -> Dict[str, int]:
+                else:
+                    print(f"Search API error {resp.status_code} for {username}")
+                    return 0
+                    
+        except Exception as e:
+            print(f"Error fetching commits for {username}: {e}")
+            return 0
+    
+    async def get_pull_request_count(
+        self,
+        username: str,
+        start_date: str,
+        end_date: str = None
+    ) -> int:
+        """Gets PR count using Search API."""
+        if not self.token:
+            return 0
+        
+        try:
+            async with httpx.AsyncClient(headers=self.headers, timeout=15.0) as client:
+                if not end_date:
+                    end_date = datetime.utcnow().strftime("%Y-%m-%d")
+                
+                # Search for PRs created by this user
+                query = f"author:{username} type:pr created:{start_date}..{end_date}"
+                
+                resp = await client.get(
+                    f"{self.base_url}/search/issues",
+                    params={"q": query, "per_page": 1}
+                )
+                
+                if resp.status_code == 200:
+                    return resp.json().get("total_count", 0)
+                else:
+                    return 0
+                    
+        except Exception as e:
+            print(f"Error fetching PRs for {username}: {e}")
+            return 0
+    
+    async def get_daily_commit_counts(
+        self,
+        username: str,
+        days: int = 7
+    ) -> Dict[str, int]:
         """
-        Fetches exact commit counts for each day in a range.
-        Slower but 'exactly real' as requested.
+        Gets daily commit counts for the last N days.
+        Returns dict with date as key and count as value.
         """
-        results = {}
-        now = datetime.utcnow()
+        daily_counts = {}
+        
         for i in range(days):
-            date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
-            count = await self.get_exact_commit_count(username, date_str, date_str)
-            results[date_str] = count
-        return results
+            date = (datetime.utcnow() - timedelta(days=i)).strftime("%Y-%m-%d")
+            count = await self.get_commit_count_for_period(username, date, date)
+            daily_counts[date] = count
+        
+        return daily_counts
+    
+    async def get_active_days_count(
+        self,
+        username: str,
+        start_date: str,
+        end_date: str = None
+    ) -> int:
+        """
+        Counts the number of days user had at least 1 commit.
+        """
+        if not end_date:
+            end_date = datetime.utcnow().strftime("%Y-%m-%d")
+        
+        try:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            return 0
+        
+        active_days = 0
+        current = start
+        
+        # Limit to prevent excessive API calls
+        max_days = 90 # Increased from whatever but keeping it reasonable
+        days_checked = 0
+        
+        # This is indeed expensive. In a production app we'd want to optimize this.
+        while current <= end and days_checked < max_days:
+            date_str = current.strftime("%Y-%m-%d")
+            count = await self.get_commit_count_for_period(username, date_str, date_str)
+            
+            if count > 0:
+                active_days += 1
+            
+            current += timedelta(days=1)
+            days_checked += 1
+        
+        return active_days
+    
+    async def get_complete_student_stats(
+        self,
+        username: str,
+        period: str = "all"  # "all", "year", "month", "week"
+    ) -> Dict:
+        """
+        Gets complete stats for a student with proper time filtering.
+        """
+        # Calculate date ranges based on period
+        now = datetime.utcnow()
+        end_date = now.strftime("%Y-%m-%d")
+        
+        if period == "week":
+            start_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+        elif period == "month":
+            start_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+        elif period == "year":
+            start_date = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+        else:  # "all"
+            start_date = "2020-01-01"
+        
+        # Fetch data in parallel
+        commits, prs, repos = await asyncio.gather(
+            self.get_commit_count_for_period(username, start_date, end_date),
+            self.get_pull_request_count(username, start_date, end_date),
+            self.get_owned_repo_count(username)
+        )
+        
+        # For active days, only calculate for limited periods (expensive!)
+        if period in ["week", "month"]:
+            active_days = await self.get_active_days_count(username, start_date, end_date)
+        else:
+            # For long periods, estimate based on commits or use a default
+            active_days = min(commits, 365)
+        
+        # Calculate activity score
+        activity_score = (commits * 2) + (prs * 3) + (active_days * 1)
+        
+        return {
+            "username": username,
+            "total_commits": commits,
+            "pull_requests": prs,
+            "repo_count": repos,
+            "active_days": active_days,
+            "activity_score": activity_score,
+            "period": period,
+            "start_date": start_date,
+            "end_date": end_date
+        }
 
-    async def get_org_repos(self, org: str) -> List[Dict]:
+    # Keep compatibility with existing code where necessary
+    async def analyze_user(self, username: str) -> Dict:
+        # This is a legacy method, we'll map it to get_complete_student_stats
+        stats = await self.get_complete_student_stats(username, period="year")
+        # Fetch avatar and profile info manually since we need it for UI
         async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            resp = await client.get(f"{self.base_url}/orgs/{org}/repos")
-            if resp.status_code == 200:
-                return resp.json()
-            return []
-
-    async def get_repo_workflows(self, owner: str, repo: str) -> List[Dict]:
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            resp = await client.get(f"{self.base_url}/repos/{owner}/{repo}/actions/workflows")
-            if resp.status_code == 200:
-                return resp.json().get("workflows", [])
-            return []
-
-    async def get_workflow_runs(self, owner: str, repo: str) -> List[Dict]:
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            resp = await client.get(f"{self.base_url}/repos/{owner}/{repo}/actions/runs")
-            if resp.status_code == 200:
-                return resp.json().get("workflow_runs", [])
-            return []
-
-    async def setup_webhook(self, owner: str, repo: str, callback_url: str):
-        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
-            data = {
-                "name": "web",
-                "active": True,
-                "events": ["push", "workflow_run"],
-                "config": {
-                    "url": callback_url,
-                    "content_type": "json",
-                    "insecure_ssl": "0"
-                }
-            }
-            resp = await client.post(f"{self.base_url}/repos/{owner}/{repo}/hooks", json=data)
-            return resp.status_code == 201
+            resp = await client.get(f"{self.base_url}/users/{username}")
+            user_info = resp.json() if resp.status_code == 200 else {}
+        
+        return {
+            "username": username,
+            "name": user_info.get("name") or username,
+            "avatar_url": user_info.get("avatar_url"),
+            "profile_url": user_info.get("html_url"),
+            "stats": stats
+        }
 
 tracker_service = GitHubTracker()
