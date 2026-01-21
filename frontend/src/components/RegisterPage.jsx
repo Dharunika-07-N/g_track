@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { User, GraduationCap, Shield, AlertCircle, Github, Mail, Lock, UserCheck, BookOpen, Fingerprint } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
@@ -167,7 +167,7 @@ export default function RegisterPage(props) {
 
         <div className="auth-footer">
           Already have an account?{' '}
-          <a href="/login" className="auth-link">Sign in</a>
+          <Link to="/login" className="auth-link">Sign in</Link>
         </div>
       </div>
     </div>
