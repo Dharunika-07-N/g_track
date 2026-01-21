@@ -162,5 +162,7 @@ def get_hod_stats(db: Session = Depends(get_db)):
         "total_students": total_students,
         "total_faculty": total_faculty,
         "total_classrooms": total_classrooms,
-        "department": "All"
+        "department": "All",
+        "avg_completion": 0,
+        "pending_reminders": 0
     }

@@ -38,7 +38,7 @@ export default function HodDashboard() {
                 axios.get(`${API_BASE}/hod/users`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 }),
-                axios.get(`${API_BASE}/dashboard/leaderboard?period=monthly`, {
+                axios.get(`${API_BASE}/students/?period=monthly&limit=5`, { // Use students API for leaderboard
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 })
             ]);
@@ -165,12 +165,12 @@ export default function HodDashboard() {
                 </div>
                 <div className="card glass stat-card">
                     <BarChart2 size={24} color="#10b981" />
-                    <span className="stat-value">84%</span>
+                    <span className="stat-value">{stats.avg_completion || 0}%</span>
                     <span className="stat-label">Avg. Completion</span>
                 </div>
                 <div className="card glass stat-card">
                     <Mail size={24} color="var(--accent)" />
-                    <span className="stat-value">12</span>
+                    <span className="stat-value">{stats.pending_reminders || 0}</span>
                     <span className="stat-label">Pending Reminders</span>
                 </div>
             </div>
@@ -179,10 +179,10 @@ export default function HodDashboard() {
                 <div className="card glass">
                     <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <Trophy size={20} color="#fbbf24" />
-                        Top Performers (Monthly)
+                        Top Performers
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {leaderboard.slice(0, 5).map((student, index) => (
+                        {leaderboard.map((student, index) => (
                             <div key={student.id} className="leaderboard-row">
                                 <div className={`rank-badge rank-${index + 1}`}>{index + 1}</div>
                                 <div style={{ flex: 1 }}>
@@ -190,10 +190,11 @@ export default function HodDashboard() {
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{student.github_username}</div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{student.score} pts</div>
+                                    <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{student.activity_score} pts</div>
                                 </div>
                             </div>
                         ))}
+                        {leaderboard.length === 0 && <div className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active students found</div>}
                     </div>
                 </div>
                 <div className="card glass">
