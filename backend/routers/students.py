@@ -182,30 +182,55 @@ async def read_students(
         query = query.filter(Student.classroom_id == classroom_id)
     students = query.all()
     
-    # Map periods to match GitHubTrackerService expectation
-    tracker_period = "all"
-    if period == "weekly": tracker_period = "week"
-    elif period == "monthly": tracker_period = "month"
-    elif period == "year": tracker_period = "year"
+    # Calculate cutoff for DB filtering
+    cutoff_date = get_period_cutoff(period)
     
+    if period == "custom" and start_date:
+        cutoff_date = start_date
+        
     results = []
+    
+    # Pre-fetch activity logs if needed to avoid N+1 (simplified here to loop for clarity/speed of impl, 
+    # but could be optimized with a join)
+    
     for s in students:
         if not s.github_username:
             continue
+            
+        commits = 0
+        prs = 0
+        active_days = 0
+        repos = s.repo_count # Repo count is always from student record (snapshot)
         
-        # Get stats for the requested period from Tracker Service (Fresh)
-        # Handle custom date range if needed
-        if period == "custom" and start_date and end_date:
-            commits = await tracker_service.get_commit_count_for_period(s.github_username, start_date, end_date)
-            prs = await tracker_service.get_pull_request_count(s.github_username, start_date, end_date)
-            active_days = await tracker_service.get_active_days_count(s.github_username, start_date, end_date)
-            repos = s.repo_count # Repo count is overall
+        if period == "all" or period == "year": # Assuming total_commits in student table is 'all time' or 'year' approx
+            commits = s.total_commits
+            prs = s.pull_requests
+            active_days = s.active_days
         else:
-            stats = await tracker_service.get_complete_student_stats(s.github_username, period=tracker_period)
-            commits = stats["total_commits"]
-            prs = stats["pull_requests"]
-            repos = stats["repo_count"]
-            active_days = stats["active_days"]
+            # Query ActivityLog for specific period
+            # For 'custom' or 'monthly'/'weekly'
+            stats = db.query(
+                func.sum(ActivityLog.commits_count),
+                func.sum(ActivityLog.pr_count),
+                func.count(ActivityLog.id)
+            ).filter(
+                ActivityLog.student_id == s.id,
+                ActivityLog.date_str >= cutoff_date
+            )
+            
+            if period == "custom" and end_date:
+                stats = stats.filter(ActivityLog.date_str <= end_date)
+                
+            stats_res = stats.first()
+            
+            commits = stats_res[0] or 0
+            prs = stats_res[1] or 0
+            active_days = stats_res[2] or 0 # Rough approximation of active days based on log existance
+            
+        
+        # Calculate score dynamically based on the PERIOD stats
+        # Formula: (commits * 2) + (prs * 3) + (active_days * 1)
+        score = (commits * 2) + (prs * 3) + (active_days * 1)
         
         results.append({
             "id": s.id, 
@@ -215,11 +240,11 @@ async def read_students(
             "avatar_url": s.avatar_url,
             "total_commits": commits, 
             "pull_requests": prs, 
-            "issues": 0, # Search API issues not implemented yet, but keeping for schema compat
+            "issues": 0, 
             "reviews": 0,
             "repo_count": repos, 
             "total_events": commits + prs,
-            "activity_score": (commits * 2) + (prs * 3) + (active_days * 1),
+            "activity_score": score,
             "active_days": active_days, 
             "last_updated": s.last_updated,
             "classroom_id": s.classroom_id, 
@@ -228,8 +253,8 @@ async def read_students(
             "status": s.status
         })
     
-    # Sort by Activity Score Descending
-    results.sort(key=lambda x: x["activity_score"], reverse=True)
+    # Sort by Total Commits Descending, then by Activity Score
+    results.sort(key=lambda x: (x["total_commits"], x["activity_score"]), reverse=True)
     return results[skip:skip+limit]
 
 @router.post("/{student_id}/refresh")

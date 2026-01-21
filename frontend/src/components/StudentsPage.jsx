@@ -228,12 +228,40 @@ const StudentsPage = () => {
                             />
                         </div>
                     )}
-                    <button className="btn btn-secondary glass" onClick={() => {
-                        let url = `${API_BASE}/analytics/export/csv?period=${period}`;
-                        if (period === 'custom' && startDate && endDate) {
-                            url += `&start_date=${startDate}&end_date=${endDate}`;
+                    <button className="btn btn-secondary glass" onClick={async () => {
+                        try {
+                            let url = `${API_BASE}/analytics/export/csv?period=${period}`;
+                            if (period === 'custom' && startDate && endDate) {
+                                url += `&start_date=${startDate}&end_date=${endDate}`;
+                            }
+
+                            const response = await axios.get(url, {
+                                responseType: 'blob', // Important: response as blob
+                            });
+
+                            // Create a link to download the file
+                            const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+
+                            // Extract filename from content-disposition if possible, or default
+                            let filename = 'students_export.xlsx';
+                            const contentDisposition = response.headers['content-disposition'];
+                            if (contentDisposition) {
+                                const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
+                                if (filenameMatch.length === 2)
+                                    filename = filenameMatch[1];
+                            }
+
+                            link.setAttribute('download', filename);
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                            window.URL.revokeObjectURL(downloadUrl);
+                        } catch (err) {
+                            console.error("Export failed:", err);
+                            alert("Failed to export data. Please try again.");
                         }
-                        window.open(url, '_blank');
                     }}>
                         <Download size={20} />
                         Export
