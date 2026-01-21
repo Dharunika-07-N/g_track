@@ -18,15 +18,11 @@ The GitHub Activity Tracker supports **dynamic period-based filtering** for stud
 - Cutoff: Current date - 30 days
 - **Default period** when page loads
 
-### 4. **Yearly**
-- Shows activity from the last 365 days
-- Cutoff: Current date - 365 days
-
-### 5. **All**
+### 4. **All**
 - Shows all historical activity
 - Cutoff: 2000-01-01 (effectively no limit)
 
-### 6. **Custom**
+### 5. **Custom**
 - Allows you to select a specific date range
 - Requires both **From** and **To** dates
 - Most flexible option for specific reporting needs
@@ -38,7 +34,7 @@ Located in: `frontend/src/components/StudentsPage.jsx`
 
 ```javascript
 // Period selection buttons
-['today', 'weekly', 'monthly', 'yearly', 'all', 'custom'].map(p => (
+['today', 'weekly', 'monthly', 'all', 'custom'].map(p => (
     <button onClick={() => setPeriod(p)}>
         {p}
     </button>
@@ -55,7 +51,7 @@ if (period === 'custom' && startDate && endDate) {
 Located in: `backend/routers/students.py`
 
 The backend endpoint `/students/` accepts these query parameters:
-- `period`: One of [today, weekly, monthly, yearly, all, custom]
+- `period`: One of [today, weekly, monthly, all, custom]
 - `start_date`: Required when period=custom (format: YYYY-MM-DD)
 - `end_date`: Required when period=custom (format: YYYY-MM-DD)
 

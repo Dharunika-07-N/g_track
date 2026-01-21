@@ -37,6 +37,8 @@ async def update_student_data(student_id: int):
             student.name = student.name or data["name"]
             student.avatar_url = data["avatar_url"]
             student.profile_url = data["profile_url"]
+            
+            # Use standard event-based stats first (provides detail)
             daily_stats = data.get("daily_stats", {})
             for day_str, d_data in daily_stats.items():
                 log = db.query(ActivityLog).filter(ActivityLog.student_id == student.id, ActivityLog.date_str == day_str).first()
@@ -47,9 +49,28 @@ async def update_student_data(student_id: int):
                 log.pr_count = d_data["prs"]
                 log.issue_count = d_data["issues"]
                 log.review_count = d_data["reviews"]
+            
+            # SUPPLEMENT with Exact Search API for the last 7 days to ensure 'Exactly Real' rates
+            # This fixes inaccuracies caused by PushEvents vs Author dates
+            print(f"Backfilling last 7 days with exact counts for {clean_username}...")
+            exact_counts = await tracker_service.get_daily_commit_counts(clean_username, days=7)
+            for day_str, count in exact_counts.items():
+                log = db.query(ActivityLog).filter(ActivityLog.student_id == student.id, ActivityLog.date_str == day_str).first()
+                if not log:
+                    log = ActivityLog(student_id=student.id, date_str=day_str)
+                    db.add(log)
+                # If Search API found more (or different) commits than Events, trust Search API for 'exactly real' numbers
+                if count > log.commits_count:
+                    log.commits_count = count
+            
             db.commit()
             
-            # Use a more robust sum directly from the DB logs to ensure accuracy
+            # Fetch EXACT Total for the last year to ensure the overall total matches GitHub profile
+            yearly_start = (datetime.utcnow() - timedelta(days=365)).strftime("%Y-%m-%d")
+            yearly_end = datetime.utcnow().strftime("%Y-%m-%d")
+            exact_total = await tracker_service.get_exact_commit_count(clean_username, yearly_start, yearly_end)
+            
+            # Recalculate totals from the DB logs for periods
             total_stats = db.query(
                 func.sum(ActivityLog.commits_count).label("commits"),
                 func.sum(ActivityLog.pr_count).label("prs"),
@@ -58,16 +79,18 @@ async def update_student_data(student_id: int):
                 func.count(ActivityLog.id).label("active_days")
             ).filter(ActivityLog.student_id == student.id).first()
 
-            student.total_commits = total_stats.commits or 0
+            # If Search API total is higher than our log sum (due to history limits), use the search total
+            student.total_commits = max(exact_total, total_stats.commits or 0)
             student.pull_requests = total_stats.prs or 0
             student.issues = total_stats.issues or 0
             student.reviews = total_stats.reviews or 0
             student.repo_count = data["stats"]["repo_count"]
-            student.total_events = data["stats"]["total_events"]
+            student.total_events = student.total_commits + student.pull_requests + student.issues + student.reviews
             student.active_days = total_stats.active_days or 0
             student.last_updated = datetime.utcnow()
             student.activity_score = (student.total_commits * 2) + (student.pull_requests * 3) + (student.active_days * 1)
-            print(f"Sync complete for {clean_username}. Total Commits: {student.total_commits}, Score: {student.activity_score}")
+            
+            print(f"Sync complete for {clean_username}. Total Commits: {student.total_commits} (Exact: {exact_total}), Score: {student.activity_score}")
         else:
             print(f"FAILED to fetch data for {clean_username}. Is GITHUB_TOKEN set correctly?")
         
@@ -95,8 +118,6 @@ def get_period_cutoff(period: str) -> str:
         cutoff = now - timedelta(days=7)
     elif period == "monthly": 
         cutoff = now - timedelta(days=30)
-    elif period == "yearly": 
-        cutoff = now - timedelta(days=365)
     else: 
         return "2000-01-01"
     return cutoff.strftime("%Y-%m-%d")
@@ -196,6 +217,7 @@ def read_students(
         ).first()
         
         commits = logs_summary.commits or 0
+        
         prs = logs_summary.prs or 0
         issues = logs_summary.issues or 0
         reviews = logs_summary.reviews or 0

@@ -114,19 +114,17 @@ class GitHubTracker:
                     
                 if etype == "PushEvent":
                     payload = event.get("payload", {})
-                    # GitHub size can sometimes be 0 for complex pushes, check commits list
-                    size = payload.get("size", 0)
-                    distinct_size = payload.get("distinct_size", 0)
-                    commits_list = payload.get("commits", [])
+                    # For PushEvent, distinct_size represents commits new to the repo
+                    # but it's still safer to check the actual commits list if available
+                    # to ensure we don't count merged commits from others.
+                    actual_commits = payload.get("distinct_size", 0)
+                    if actual_commits == 0 and payload.get("size", 0) > 0:
+                        # Fallback to size if distinct_size is missing (unusual)
+                        actual_commits = payload.get("size", 0)
                     
-                    # Take the highest count available from various payload fields
-                    actual_commits = max(size, distinct_size, len(commits_list))
+                    # If we have the commits list, we can check if they are actually the user's
+                    # but Event API only shows up to 20 commits.
                     
-                    # Fallback: if it's a PushEvent, it should likely count as at least 1
-                    # but only if we really have no other info and it's not a tag Ref
-                    if actual_commits == 0 and not payload.get("ref", "").startswith("refs/tags/"):
-                        actual_commits = 1
-
                     stats["commits"] += actual_commits
                     daily_stats[date_key]["commits"] += actual_commits
                 elif etype == "PullRequestEvent":
@@ -141,10 +139,6 @@ class GitHubTracker:
                 elif etype == "PullRequestReviewEvent":
                     stats["reviews"] += 1
                     daily_stats[date_key]["reviews"] += 1
-                elif etype == "CommitCommentEvent":
-                    # Adding support for comments as activity
-                    stats["commits"] += 1 
-                    daily_stats[date_key]["commits"] += 1
             
             return {
                 "username": user_info.get("login"),
@@ -162,6 +156,42 @@ class GitHubTracker:
                     "active_days": len(stats["active_dates"])
                 }
             }
+
+    async def get_exact_commit_count(self, username: str, start_date: str, end_date: str) -> int:
+        """
+        Uses GitHub Search API to get the EXACT number of commits for a user in a period.
+        Matching the GitHub contribution graph logic (author-date).
+        """
+        if not self.token:
+            return 0
+            
+        async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
+            query = f"author:{username} author-date:{start_date}..{end_date}"
+            try:
+                resp = await client.get(
+                    f"{self.base_url}/search/commits",
+                    params={"q": query}
+                )
+                if resp.status_code == 200:
+                    return resp.json().get("total_count", 0)
+                elif resp.status_code == 422: # Often means range is invalid or user not found
+                    return 0
+                return 0
+            except Exception:
+                return 0
+
+    async def get_daily_commit_counts(self, username: str, days: int = 7) -> Dict[str, int]:
+        """
+        Fetches exact commit counts for each day in a range.
+        Slower but 'exactly real' as requested.
+        """
+        results = {}
+        now = datetime.utcnow()
+        for i in range(days):
+            date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+            count = await self.get_exact_commit_count(username, date_str, date_str)
+            results[date_str] = count
+        return results
 
     async def get_org_repos(self, org: str) -> List[Dict]:
         async with httpx.AsyncClient(headers=self.headers, timeout=10.0) as client:
