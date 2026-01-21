@@ -69,6 +69,11 @@ app = FastAPI(title="Github Classroom Tracker", lifespan=lifespan)
 os.makedirs("templates", exist_ok=True)
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
+# Mount the assets folder explicitly for better performance/MIME handling
+# Check if static/assets exists first (it should in prod)
+if os.path.isdir(os.path.join("static", "assets")):
+    app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
