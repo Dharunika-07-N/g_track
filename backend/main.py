@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+# Token reload trigger
 
 # Debug: Print first/last 4 chars of token to verify it's loaded
 token = os.getenv("GITHUB_TOKEN")
