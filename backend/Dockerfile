@@ -21,4 +21,4 @@ EXPOSE 8000
 
 # Start server
 # Start server with gunicorn for production
-CMD ["gunicorn", "main:app", "--workers", "4", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "main:app", "--workers", "1", "--timeout", "120", "--worker-class", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
