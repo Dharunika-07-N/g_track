@@ -207,7 +207,24 @@ export default function HodDashboard() {
                             <Mail size={24} />
                             <span style={{ marginTop: '0.5rem' }}>Email Faculty</span>
                         </button>
-                        <button className="btn btn-secondary glass" style={{ height: '100px', flexDirection: 'column' }} onClick={() => window.open(`${API_BASE}/analytics/export/csv?status=incomplete`)}>
+                        <button className="btn btn-secondary glass" style={{ height: '100px', flexDirection: 'column' }} onClick={async () => {
+                            try {
+                                const response = await axios.get(`${API_BASE}/analytics/export/csv?status=incomplete`, { responseType: 'blob' });
+                                const url = window.URL.createObjectURL(new Blob([response.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', 'incomplete_report.xlsx');
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                            } catch (error) {
+                                if (error.response && error.response.status === 404) {
+                                    alert("No assignments is assigned");
+                                } else {
+                                    alert("Export failed");
+                                }
+                            }
+                        }}>
                             <Download size={24} />
                             <span>Export Incomplete</span>
                         </button>

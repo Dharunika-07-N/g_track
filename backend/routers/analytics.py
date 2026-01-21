@@ -50,12 +50,7 @@ def export_full_history(
         if status == "incomplete":
             total_assignments = db.query(Assignment).count()
             if total_assignments == 0:
-                output = io.BytesIO()
-                pd.DataFrame([{"Message": "No assignments is assigned"}]).to_excel(output, index=False)
-                output.seek(0)
-                filename = f"incomplete_report.xlsx"
-                headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
-                return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                raise HTTPException(status_code=404, detail="No assignments is assigned")
         
         # Base Student Query
         students = db.query(Student)
