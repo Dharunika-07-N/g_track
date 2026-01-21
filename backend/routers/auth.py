@@ -67,12 +67,19 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 
 @router.post("/register", response_model=TokenResponse)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == req.email).first()
-    if existing:
+    existing_email = db.query(User).filter(User.email == req.email).first()
+    if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Clean github_username (extract username from URL if provided)
+    github_user = req.github_username.strip().rstrip('/').strip('@').split('/')[-1]
+
+    existing_github = db.query(User).filter(User.github_username == github_user).first()
+    if existing_github:
+        raise HTTPException(status_code=400, detail="GitHub username already registered")
+    
     user = User(
-        github_username=req.github_username,
+        github_username=github_user,
         email=req.email,
         password_hash=hash_password(req.password),
         role="hod", # Force HOD role for all new registrations

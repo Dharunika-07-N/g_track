@@ -18,9 +18,19 @@ elif DATABASE_URL.startswith("postgres://"):
     # SQLAlchemy 1.4+ requires postgresql:// instead of postgres://
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# For SQLite, we need to allow multiple threads
+# For SQLite, we need to allow multiple threads and enable WAL mode
 engine_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=engine_args, pool_pre_ping=True)
+
+# Enable WAL mode for SQLite
+if DATABASE_URL.startswith("sqlite"):
+    from sqlalchemy import event
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.close()
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
@@ -205,7 +215,7 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(Integer, ForeignKey("students.id"))
+    student_id = Column(Integer, ForeignKey("students.id"), index=True)
     date_str = Column(String, index=True) # YYYY-MM-DD
     
     commits_count = Column(Integer, default=0)
