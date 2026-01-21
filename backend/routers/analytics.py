@@ -26,15 +26,24 @@ def export_full_history(
     db: Session = Depends(get_db)
 ):
     try:
-        from routers.students import get_period_cutoff
-        from datetime import datetime
+        from datetime import datetime, timedelta
         
         # Handle custom date range
         if period == "custom" and start_date and end_date:
             cutoff_start = start_date
             cutoff_end = end_date
         else:
-            cutoff_start = get_period_cutoff(period)
+            # Local logic for period cutoff since reusable function is missing
+            today = datetime.utcnow().date()
+            if period == "daily":
+                cutoff_start = str(today)
+            elif period == "weekly":
+                cutoff_start = str(today - timedelta(days=7))
+            elif period == "monthly":
+                cutoff_start = str(today - timedelta(days=30))
+            else:
+                cutoff_start = "2000-01-01" # Default all-time
+            
             cutoff_end = datetime.utcnow().strftime("%Y-%m-%d")
         
         # Base Student Query
