@@ -46,6 +46,17 @@ def export_full_history(
             
             cutoff_end = datetime.utcnow().strftime("%Y-%m-%d")
         
+        # Check for assignment existence if checking incomplete status
+        if status == "incomplete":
+            total_assignments = db.query(Assignment).count()
+            if total_assignments == 0:
+                output = io.BytesIO()
+                pd.DataFrame([{"Message": "No assignments is assigned"}]).to_excel(output, index=False)
+                output.seek(0)
+                filename = f"incomplete_report.xlsx"
+                headers = {'Content-Disposition': f'attachment; filename="{filename}"'}
+                return StreamingResponse(output, headers=headers, media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        
         # Base Student Query
         students = db.query(Student)
         if classroom_id:
