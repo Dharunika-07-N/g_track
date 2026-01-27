@@ -22,6 +22,16 @@ def get_db():
     finally:
         db.close()
 
+def get_period_cutoff(period: str) -> str:
+    today = datetime.utcnow()
+    if period == "daily":
+        return today.strftime("%Y-%m-%d")
+    elif period == "weekly":
+        return (today - timedelta(days=7)).strftime("%Y-%m-%d")
+    elif period == "monthly":
+        return (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    return "2000-01-01"
+
 @router.get("/", response_model=List[StudentRead])
 async def read_students(
     period: str = "all-time",

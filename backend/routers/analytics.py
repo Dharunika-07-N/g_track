@@ -293,3 +293,81 @@ def get_all_archives(db: Session = Depends(get_db)):
     from database import SemesterArchive
     archives = db.query(SemesterArchive).order_by(SemesterArchive.created_at.desc()).all()
     return archives
+
+# Migrated from main.py
+@router.get("/dashboard/stats")
+def dashboard_stats(period: str = "monthly", db: Session = Depends(get_db)):
+    from routers.students import get_period_cutoff
+    cutoff = get_period_cutoff(period)
+    
+    total_students = db.query(Student).count()
+    active_students = db.query(ActivityLog.student_id).filter(
+        ActivityLog.date_str >= cutoff
+    ).distinct().count()
+    
+    total_commits = db.query(func.sum(ActivityLog.commits_count)).filter(
+        ActivityLog.date_str >= cutoff
+    ).scalar() or 0
+    
+    return {
+        "total_students": total_students,
+        "active_students": active_students,
+        "total_commits": total_commits
+    }
+
+@router.get("/dashboard/daily-stats")
+def daily_stats(date: str, db: Session = Depends(get_db)):
+    # Activity logs for this date
+    logs = db.query(ActivityLog).filter(ActivityLog.date_str == date).all()
+    
+    active_count = len(set(log.student_id for log in logs))
+    commits_count = sum(log.commits_count for log in logs)
+    
+    # Find assignments created or due on this date (simple check)
+    assignments_due = db.query(Assignment).filter(func.date(Assignment.deadline) == date).count()
+    
+    return {
+        "date": date,
+        "active_students": active_count,
+        "commits": commits_count,
+        "assignments_due": assignments_due
+    }
+
+@router.get("/dashboard/leaderboard")
+def get_leaderboard(period: str = "monthly", limit: int = 5, db: Session = Depends(get_db)):
+    from routers.students import get_period_cutoff
+    cutoff = get_period_cutoff(period)
+    
+    query = db.query(
+        Student.id,
+        Student.name,
+        Student.github_username,
+        Student.avatar_url,
+        func.sum(ActivityLog.commits_count).label("commits"),
+        func.sum(ActivityLog.pr_count).label("prs"),
+        func.count(ActivityLog.id).label("active_days")
+    ).join(ActivityLog, Student.id == ActivityLog.student_id)\
+     .filter(ActivityLog.date_str >= cutoff)\
+     .group_by(Student.id)\
+     .order_by(func.sum(ActivityLog.commits_count).desc())\
+     .limit(limit).all()
+    
+    leaderboard = []
+    for r in query:
+        commits = r.commits or 0
+        prs = r.prs or 0
+        active_days = r.active_days or 0
+        
+        score = (commits * 2) + (prs * 3) + (active_days * 1)
+        leaderboard.append({
+            "id": r.id,
+            "name": r.name or r.github_username,
+            "github_username": r.github_username,
+            "avatar_url": r.avatar_url,
+            "commits": commits,
+            "prs": prs,
+            "score": score
+        })
+    
+    leaderboard.sort(key=lambda x: (x["commits"], x["score"]), reverse=True)
+    return leaderboard
