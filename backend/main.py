@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from services.tracker import tracker_service
 
-# EXPLICIT IMPORTS TO AVOID ANY CONFLICTS
+# EXPLICIT IMPORTS
 from routers.auth import router as auth_router, verify_token
 from routers.students import router as students_router
 from routers.classrooms import router as classrooms_router
@@ -52,13 +52,9 @@ async def lifespan(app: FastAPI):
     from services.scheduler_service import start_scheduler
     scheduler = start_scheduler()
     
-    # Adding the periodic student data sync job to the same scheduler
     scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
-    
-    # Trigger initial update immediately in background
     asyncio.create_task(scheduled_update_all())
     yield
-    # Shutdown
     print("Application shutting down...")
     scheduler.shutdown()
 
@@ -74,10 +70,14 @@ app.add_middleware(
 )
 
 # --- API ROUTES ---
-# We use direct inclusion with prefix to be most robust across FastAPI versions
-app.include_router(auth_router, prefix="/api")
 
-# Protected dependencies
+# SUPPORT BOTH PREFIXED AND UNPREFIXED AUTH ROUTES FOR TRANSITION/COMPATIBILITY
+# Prefixed (New standard)
+app.include_router(auth_router, prefix="/api")
+# Unprefixed (Legacy support for old frontend builds)
+app.include_router(auth_router)
+
+# Protected routes (Strictly under /api)
 api_deps = [Depends(verify_token)]
 app.include_router(students_router, prefix="/api", dependencies=api_deps)
 app.include_router(classrooms_router, prefix="/api", dependencies=api_deps)
@@ -86,16 +86,15 @@ app.include_router(submissions_router, prefix="/api", dependencies=api_deps)
 app.include_router(analytics_router, prefix="/api", dependencies=api_deps)
 app.include_router(hod_router, prefix="/api", dependencies=api_deps)
 
-# Ping endpoint for debug
+# Ping endpoint
 @app.get("/api/ping")
 def ping():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
-# Static files for templates
+# Static files
 os.makedirs("templates", exist_ok=True)
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
-# Mount assets
 if os.path.isdir(os.path.join("static", "assets")):
     app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
@@ -106,7 +105,6 @@ def get_db():
     finally:
         db.close()
 
-# --- Background Tasks ---
 async def update_student_data(student_id: int):
     from routers.students import update_student_data_background
     await update_student_data_background(student_id)
@@ -129,40 +127,43 @@ def sync_scheduler_wrapper():
     except Exception as e:
         print(f"Error in sync_scheduler_wrapper: {e}")
 
-# Catch-all for SPA
+@app.get("/")
+def read_root():
+    frontend_index = os.path.join("static", "index.html")
+    if os.path.exists(frontend_index):
+        from fastapi.responses import FileResponse
+        return FileResponse(frontend_index)
+    return {"message": "Github Classroom Tracker API is running"}
+
+# Robust SPA Fallback
 @app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def spa_fallback(request: Request, full_path: str):
-    # 1. If it's a static file request that actually exists, serve it
+    # 1. Static files
     static_file = os.path.join("static", full_path)
     if os.path.exists(static_file) and os.path.isfile(static_file):
+        from fastapi.responses import FileResponse
         return FileResponse(static_file)
     
-    # 2. If it's an API request that reached here, it's a 404 (not matched by routers)
-    if full_path.startswith("api") or full_path.startswith("templates"):
+    # 2. Unmatched API routes (either /api/... or fallback /auth/...)
+    if full_path.startswith("api") or full_path.startswith("auth") or full_path.startswith("templates"):
         return JSONResponse(
             status_code=404, 
             content={"detail": f"API Route Not Found: {request.method} /{full_path}"}
         )
     
-    # 3. For all other GET requests, serve index.html (SPA routing)
+    # 3. Frontend Routes (must be GET)
     if request.method == "GET":
         frontend_index = os.path.join("static", "index.html")
         if os.path.exists(frontend_index):
+            from fastapi.responses import FileResponse
             return FileResponse(frontend_index)
-        return JSONResponse(content={"message": "Frontend not built"})
+        return JSONResponse(content={"message": "Frontend index.html not found"})
     
-    # 4. For non-GET requests to non-API paths, it's a 405 or 404
+    # 4. Fallback for mixed-method errors
     return JSONResponse(
         status_code=405,
         content={"detail": f"Method {request.method} not allowed for path /{full_path}"}
     )
-
-@app.get("/")
-def read_root():
-    frontend_index = os.path.join("static", "index.html")
-    if os.path.exists(frontend_index):
-        return FileResponse(frontend_index)
-    return {"message": "Github Classroom Tracker API is running"}
 
 if __name__ == "__main__":
     import uvicorn
