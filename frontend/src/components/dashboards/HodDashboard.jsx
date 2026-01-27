@@ -42,9 +42,9 @@ export default function HodDashboard() {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 })
             ]);
-            setStats(statsRes.data);
-            setUsers(usersRes.data);
-            setLeaderboard(leaderboardRes.data);
+            setStats(statsRes.data || { total_students: 0, total_faculty: 0 });
+            setUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+            setLeaderboard(Array.isArray(leaderboardRes.data) ? leaderboardRes.data : []);
         } catch (err) {
             console.error("Error fetching HOD data:", err);
         } finally {
@@ -182,7 +182,7 @@ export default function HodDashboard() {
                         Top Performers
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {leaderboard.map((student, index) => (
+                        {Array.isArray(leaderboard) && leaderboard.map((student, index) => (
                             <div key={student.id} className="leaderboard-row">
                                 <div className={`rank-badge rank-${index + 1}`}>{index + 1}</div>
                                 <div style={{ flex: 1 }}>
@@ -194,7 +194,7 @@ export default function HodDashboard() {
                                 </div>
                             </div>
                         ))}
-                        {leaderboard.length === 0 && <div className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active students found</div>}
+                        {(!Array.isArray(leaderboard) || leaderboard.length === 0) && <div className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active students found</div>}
                     </div>
                 </div>
                 <div className="card glass">
@@ -257,7 +257,7 @@ export default function HodDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            {users.map(user => (
+                            {Array.isArray(users) && users.map(user => (
                                 <tr key={user.id}>
                                     <td>
                                         <input
