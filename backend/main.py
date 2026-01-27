@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, UploadFile, File, Request
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 from database import SessionLocal, Student, ActivityLog, init_db, User
 from pydantic import BaseModel
@@ -16,7 +17,15 @@ load_dotenv()
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from services.tracker import tracker_service
-from routers import students, classrooms, assignments, submissions, analytics, hod, auth
+
+# EXPLICIT IMPORTS TO AVOID ANY CONFLICTS
+from routers.auth import router as auth_router, verify_token
+from routers.students import router as students_router
+from routers.classrooms import router as classrooms_router
+from routers.assignments import router as assignments_router
+from routers.submissions import router as submissions_router
+from routers.analytics import router as analytics_router
+from routers.hod import router as hod_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,29 +73,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# API Router
-from fastapi import APIRouter
-api_router = APIRouter(prefix="/api")
+# --- API ROUTES ---
+# We use direct inclusion with prefix to be most robust across FastAPI versions
+app.include_router(auth_router, prefix="/api")
 
-# Auth routes (public for login/register)
-api_router.include_router(auth.router)
+# Protected dependencies
+api_deps = [Depends(verify_token)]
+app.include_router(students_router, prefix="/api", dependencies=api_deps)
+app.include_router(classrooms_router, prefix="/api", dependencies=api_deps)
+app.include_router(assignments_router, prefix="/api", dependencies=api_deps)
+app.include_router(submissions_router, prefix="/api", dependencies=api_deps)
+app.include_router(analytics_router, prefix="/api", dependencies=api_deps)
+app.include_router(hod_router, prefix="/api", dependencies=api_deps)
 
-# Protected routes
-api_protected_deps = [Depends(auth.verify_token)]
-api_router.include_router(students.router, dependencies=api_protected_deps)
-api_router.include_router(classrooms.router, dependencies=api_protected_deps)
-api_router.include_router(assignments.router, dependencies=api_protected_deps)
-api_router.include_router(submissions.router, dependencies=api_protected_deps)
-api_router.include_router(analytics.router, dependencies=api_protected_deps)
-api_router.include_router(hod.router, dependencies=api_protected_deps)
-
-app.include_router(api_router)
+# Ping endpoint for debug
+@app.get("/api/ping")
+def ping():
+    return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
 # Static files for templates
 os.makedirs("templates", exist_ok=True)
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
 
-# Mount the assets folder explicitly for better performance/MIME handling
+# Mount assets
 if os.path.isdir(os.path.join("static", "assets")):
     app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
@@ -97,21 +106,18 @@ def get_db():
     finally:
         db.close()
 
-# --- background tasks ---
+# --- Background Tasks ---
 async def update_student_data(student_id: int):
     from routers.students import update_student_data_background
     await update_student_data_background(student_id)
 
 async def scheduled_update_all():
-    print("Executing scheduled poll of all students...")
     db = SessionLocal()
     students_list = db.query(Student).all()
     s_ids = [s.id for s in students_list]
     db.close()
-    
     for sid in s_ids:
         await update_student_data(sid)
-    print("Scheduled poll complete.")
 
 def sync_scheduler_wrapper():
     try:
@@ -123,30 +129,39 @@ def sync_scheduler_wrapper():
     except Exception as e:
         print(f"Error in sync_scheduler_wrapper: {e}")
 
-@app.get("/")
-def read_root():
-    frontend_index = os.path.join("static", "index.html")
-    if os.path.exists(frontend_index):
-        from fastapi.responses import FileResponse
-        return FileResponse(frontend_index)
-    return {"message": "Github Classroom Tracker API is running"}
-
-# SPA Fallback
-@app.get("/{full_path:path}")
-async def spa_fallback(full_path: str):
-    from fastapi.responses import FileResponse
-    
+# Catch-all for SPA
+@app.api_route("/{full_path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def spa_fallback(request: Request, full_path: str):
+    # 1. If it's a static file request that actually exists, serve it
     static_file = os.path.join("static", full_path)
     if os.path.exists(static_file) and os.path.isfile(static_file):
         return FileResponse(static_file)
     
+    # 2. If it's an API request that reached here, it's a 404 (not matched by routers)
     if full_path.startswith("api") or full_path.startswith("templates"):
-        raise HTTPException(status_code=404, detail="API route not found")
+        return JSONResponse(
+            status_code=404, 
+            content={"detail": f"API Route Not Found: {request.method} /{full_path}"}
+        )
     
+    # 3. For all other GET requests, serve index.html (SPA routing)
+    if request.method == "GET":
+        frontend_index = os.path.join("static", "index.html")
+        if os.path.exists(frontend_index):
+            return FileResponse(frontend_index)
+        return JSONResponse(content={"message": "Frontend not built"})
+    
+    # 4. For non-GET requests to non-API paths, it's a 405 or 404
+    return JSONResponse(
+        status_code=405,
+        content={"detail": f"Method {request.method} not allowed for path /{full_path}"}
+    )
+
+@app.get("/")
+def read_root():
     frontend_index = os.path.join("static", "index.html")
     if os.path.exists(frontend_index):
         return FileResponse(frontend_index)
-    
     return {"message": "Github Classroom Tracker API is running"}
 
 if __name__ == "__main__":
