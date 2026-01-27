@@ -142,7 +142,7 @@ export default function HodDashboard() {
                     {importStatus.errors?.length > 0 && (
                         <div style={{ maxHeight: '150px', overflowY: 'auto', background: 'rgba(0,0,0,0.05)', padding: '1rem', borderRadius: '0.5rem', fontSize: '0.85rem' }}>
                             <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>Error Details:</p>
-                            {importStatus.errors.map((err, i) => (
+                            {Array.isArray(importStatus.errors) && importStatus.errors.map((err, i) => (
                                 <div key={i} style={{ marginBottom: '0.25rem', color: 'var(--error)' }}>
                                     Row {err.row}: {err.reason}
                                 </div>
@@ -246,7 +246,7 @@ export default function HodDashboard() {
                     <table>
                         <thead>
                             <tr>
-                                <th><input type="checkbox" onChange={(e) => setSelectedUsers(e.target.checked ? users.map(u => u.id) : [])} /></th>
+                                <th><input type="checkbox" onChange={(e) => setSelectedUsers(e.target.checked && Array.isArray(users) ? users.map(u => u.id) : [])} /></th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>

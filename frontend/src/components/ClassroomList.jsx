@@ -88,7 +88,7 @@ const ClassroomList = () => {
             </header>
 
             <div className="grid grid-3">
-                {classrooms.filter(c => !c.is_archived).map(c => (
+                {Array.isArray(classrooms) && classrooms.filter(c => !c.is_archived).map(c => (
                     <div key={c.id} className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                             <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--primary-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>

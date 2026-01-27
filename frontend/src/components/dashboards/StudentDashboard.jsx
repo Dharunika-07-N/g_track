@@ -103,7 +103,7 @@ export default function StudentDashboard() {
                         Recent GitHub Activity
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {recent_activity.length > 0 ? (
+                        {Array.isArray(recent_activity) && recent_activity.length > 0 ? (
                             recent_activity.map((log, i) => (
                                 <div key={i} className="leaderboard-row" style={{ background: 'rgba(255,255,255,0.4)' }}>
                                     <div style={{ flex: 1 }}>
@@ -125,7 +125,7 @@ export default function StudentDashboard() {
                         Upcoming Deadlines
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {deadlines.length > 0 ? (
+                        {Array.isArray(deadlines) && deadlines.length > 0 ? (
                             deadlines.map(d => (
                                 <div key={d.id} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>

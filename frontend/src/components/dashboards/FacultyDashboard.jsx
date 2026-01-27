@@ -30,8 +30,8 @@ export default function FacultyDashboard() {
                         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                     })
                 ]);
-                setStats(statsRes.data);
-                setClassrooms(classRes.data);
+                setStats(statsRes.data || { total_students: 0, active_students: 0, total_commits: 0 });
+                setClassrooms(Array.isArray(classRes.data) ? classRes.data : []);
             } catch (err) {
                 console.error("Error fetching faculty dashboard:", err);
             } finally {
@@ -81,7 +81,7 @@ export default function FacultyDashboard() {
             <div className="card glass">
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '2rem' }}>My Classrooms</h2>
                 <div className="grid grid-3">
-                    {classrooms.map(cls => (
+                    {Array.isArray(classrooms) && classrooms.map(cls => (
                         <div
                             key={cls.id}
                             className="card glass clickable"
@@ -103,7 +103,7 @@ export default function FacultyDashboard() {
                             </div>
                         </div>
                     ))}
-                    {classrooms.length === 0 && <p className="text-muted">No classrooms created yet.</p>}
+                    {(!Array.isArray(classrooms) || classrooms.length === 0) && <p className="text-muted">No classrooms created yet.</p>}
                 </div>
             </div>
         </div>
