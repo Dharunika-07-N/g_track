@@ -26,6 +26,7 @@ const StudentsPage = () => {
         department: '',
         classroom_id: ''
     });
+    const [topLimit, setTopLimit] = useState('all');
 
     const fetchStudents = React.useCallback(async () => {
         setLoading(true);
@@ -163,7 +164,7 @@ const StudentsPage = () => {
 
     const toggleSelectAll = (e) => {
         if (e.target.checked) {
-            setSelectedStudents(filteredStudents.map(s => s.id));
+            setSelectedStudents(displayedStudents.map(s => s.id));
         } else {
             setSelectedStudents([]);
         }
@@ -177,10 +178,23 @@ const StudentsPage = () => {
         }
     };
 
-    const filteredStudents = (Array.isArray(students) ? students : []).filter(s =>
+    const sortedStudents = [...(Array.isArray(students) ? students : [])]
+        .filter(s => s.status !== 'archived')
+        .sort((a, b) => {
+            if ((b.total_commits || 0) !== (a.total_commits || 0)) {
+                return (b.total_commits || 0) - (a.total_commits || 0);
+            }
+            return (b.activity_score || 0) - (a.activity_score || 0);
+        });
+
+    const filteredStudents = sortedStudents.filter(s =>
         s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.github_username?.toLowerCase().includes(searchTerm.toLowerCase())
-    ).filter(s => s.status !== 'archived');
+    );
+
+    const displayedStudents = topLimit === 'all'
+        ? filteredStudents
+        : filteredStudents.slice(0, parseInt(topLimit));
 
     return (
         <div className="main-content">
@@ -266,6 +280,31 @@ const StudentsPage = () => {
                         <Download size={20} />
                         Export
                     </button>
+                    <div className="glass" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0.75rem', borderRadius: '0.75rem', height: 'fit-content' }}>
+                        <Users size={18} style={{ color: 'var(--primary)' }} />
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Top:</span>
+                        <select
+                            value={topLimit}
+                            onChange={(e) => setTopLimit(e.target.value)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--text)',
+                                fontSize: '0.875rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                padding: '0.25rem',
+                                outline: 'none'
+                            }}
+                        >
+                            <option value="all">All Contributors</option>
+                            <option value="5">Top 5</option>
+                            <option value="10">Top 10</option>
+                            <option value="25">Top 25</option>
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                        </select>
+                    </div>
                 </div>
             </header>
 
@@ -333,9 +372,10 @@ const StudentsPage = () => {
                                         <input
                                             type="checkbox"
                                             onChange={toggleSelectAll}
-                                            checked={selectedStudents.length === filteredStudents.length && filteredStudents.length > 0}
+                                            checked={selectedStudents.length === displayedStudents.length && displayedStudents.length > 0}
                                         />
                                     </th>
+                                    <th style={{ padding: '1rem', width: '50px' }}>Rank</th>
                                     <th style={{ padding: '1rem' }}>Student</th>
                                     <th>GitHub</th>
                                     <th>Score</th>
@@ -348,7 +388,7 @@ const StudentsPage = () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredStudents.map(s => (
+                                {displayedStudents.map((s, index) => (
                                     <tr key={s.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                         <td style={{ padding: '1rem', textAlign: 'center' }}>
                                             <input
@@ -356,6 +396,9 @@ const StudentsPage = () => {
                                                 checked={selectedStudents.includes(s.id)}
                                                 onChange={() => toggleSelectStudent(s.id)}
                                             />
+                                        </td>
+                                        <td style={{ padding: '1rem', textAlign: 'center', fontWeight: 800, color: 'var(--primary)' }}>
+                                            {index + 1}
                                         </td>
                                         <td style={{ padding: '1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

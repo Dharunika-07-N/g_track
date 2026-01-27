@@ -86,13 +86,16 @@ app.add_middleware(
 from routers.auth import verify_token, router as auth_router
 
 # Include Routers with Security
-app.include_router(students.router, dependencies=[Depends(verify_token)])
-app.include_router(classrooms.router, dependencies=[Depends(verify_token)])
-app.include_router(assignments.router, dependencies=[Depends(verify_token)])
-app.include_router(submissions.router, dependencies=[Depends(verify_token)])
-app.include_router(analytics.router, dependencies=[Depends(verify_token)])
-app.include_router(hod.router, dependencies=[Depends(verify_token)])
-app.include_router(auth_router)
+# Auth router FIRST (contains /login, /register, and /me)
+app.include_router(auth_router, prefix="/api")
+
+# Protected routers with /api prefix
+app.include_router(students.router, prefix="/api", dependencies=[Depends(verify_token)])
+app.include_router(classrooms.router, prefix="/api", dependencies=[Depends(verify_token)])
+app.include_router(assignments.router, prefix="/api", dependencies=[Depends(verify_token)])
+app.include_router(submissions.router, prefix="/api", dependencies=[Depends(verify_token)])
+app.include_router(analytics.router, prefix="/api", dependencies=[Depends(verify_token)])
+app.include_router(hod.router, prefix="/api", dependencies=[Depends(verify_token)])
 
 def get_db():
     db = SessionLocal()
@@ -266,8 +269,7 @@ async def spa_fallback(full_path: str):
     
     # List of API prefixes that should NOT fallback to index.html to avoid 
     # returning HTML for failed API calls (which breaks JSON parsing in frontend)
-    api_prefixes = ['auth', 'api', 'dashboard', 'students', 'classrooms', 
-                    'assignments', 'submissions', 'analytics', 'hod', 'templates']
+    api_prefixes = ['api', 'dashboard', 'templates']
     
     if any(full_path.startswith(prefix) for prefix in api_prefixes):
         raise HTTPException(status_code=404, detail="API route not found")
