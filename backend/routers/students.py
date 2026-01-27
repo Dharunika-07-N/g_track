@@ -119,10 +119,15 @@ async def read_students(
     paginated_results = results[skip : skip + limit]
     return paginated_results
 
-async def update_student_data_background(student_id: int, start_date: str = "2025-12-01", end_date: str = "2026-01-21"):
+async def update_student_data_background(student_id: int, start_date: Optional[str] = None, end_date: Optional[str] = None):
     """
     Background task to sync student data.
     """
+    # Use dynamic dates if not provided
+    if not start_date:
+        start_date = "2025-12-01" # Semester Start
+    if not end_date:
+        end_date = datetime.utcnow().strftime("%Y-%m-%d")
     db = SessionLocal()
     try:
         student = db.query(Student).filter(Student.id == student_id).first()
@@ -250,3 +255,11 @@ async def sync_all_students(background_tasks: BackgroundTasks, db: Session = Dep
     for s in students:
         background_tasks.add_task(update_student_data_background, s.id)
     return {"message": f"Sync scheduled for {len(students)} students"}
+
+@router.post("/{student_id}/refresh")
+async def refresh_student(student_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.id == student_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+    background_tasks.add_task(update_student_data_background, student.id)
+    return {"message": "Refresh scheduled"}

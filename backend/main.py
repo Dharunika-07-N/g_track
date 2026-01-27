@@ -107,8 +107,8 @@ def get_db():
 # --- background tasks ---
 async def update_student_data(student_id: int):
     # This is also in students router, keeping a reference here if needed
-    from routers.students import update_student_data as usd
-    await usd(student_id)
+    from routers.students import update_student_data_background
+    await update_student_data_background(student_id)
 
 async def scheduled_update_all():
     print("Executing scheduled poll of all students...")
