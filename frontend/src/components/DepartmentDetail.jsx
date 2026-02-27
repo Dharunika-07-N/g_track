@@ -35,6 +35,10 @@ const DepartmentDetail = () => {
     const [period, setPeriod] = useState('all-time');
     const [customStart, setCustomStart] = useState('');
     const [customEnd, setCustomEnd] = useState('');
+    const [topLimit, setTopLimit] = useState('all');
+    const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+    const [newStudentForm, setNewStudentForm] = useState({ name: '', github_username: '', student_id: '', email: '', department: '', classroom_id: '' });
+    const [addingStudent, setAddingStudent] = useState(false);
 
     // Import state
     const [importFile, setImportFile] = useState(null);
@@ -121,6 +125,10 @@ const DepartmentDetail = () => {
             return sortDir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
         });
 
+    const displayedStudents = topLimit === 'all'
+        ? sortedStudents
+        : sortedStudents.slice(0, parseInt(topLimit));
+
     const handleCreateClassroom = async () => {
         if (!classroomForm.name.trim()) { showToast('Classroom name required', 'error'); return; }
         try {
@@ -157,6 +165,31 @@ const DepartmentDetail = () => {
             fetchStudents();
         } catch (e) {
             showToast('Failed to remove student', 'error');
+        }
+    };
+
+    const handleAddStudent = async (e) => {
+        e.preventDefault();
+        setAddingStudent(true);
+        try {
+            const token = localStorage.getItem('token');
+            const payload = {
+                ...newStudentForm,
+                classroom_id: newStudentForm.classroom_id ? parseInt(newStudentForm.classroom_id) : null,
+                department: newStudentForm.department || dept?.name || ''
+            };
+            if (!payload.classroom_id) delete payload.classroom_id;
+            await axios.post(`${API_BASE}/students/`, payload, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showToast('Student added successfully!');
+            setShowAddStudentModal(false);
+            setNewStudentForm({ name: '', github_username: '', student_id: '', email: '', department: '', classroom_id: '' });
+            fetchStudents();
+        } catch (e) {
+            showToast(e.response?.data?.detail || 'Failed to add student', 'error');
+        } finally {
+            setAddingStudent(false);
         }
     };
 
@@ -482,6 +515,20 @@ const DepartmentDetail = () => {
                                 </div>
                             )}
 
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', borderLeft: '2px solid #e2e8f0', paddingLeft: '0.5rem' }}>
+                                <Users size={16} color="#64748b" />
+                                <select value={topLimit} onChange={e => setTopLimit(e.target.value)}
+                                    style={{ padding: '0.6rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', background: '#f8fafc', cursor: 'pointer', fontWeight: 600 }}
+                                >
+                                    <option value="all">Top Contributors</option>
+                                    <option value="5">Top 5</option>
+                                    <option value="10">Top 10</option>
+                                    <option value="15">Top 15</option>
+                                    <option value="25">Top 25</option>
+                                    <option value="50">Top 50</option>
+                                </select>
+                            </div>
+
                             <select value={selectedClassroom || ''} onChange={e => setSelectedClassroom(e.target.value || null)}
                                 style={{ padding: '0.6rem 0.75rem', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '0.9rem', background: '#f8fafc' }}
                             >
@@ -489,8 +536,24 @@ const DepartmentDetail = () => {
                                 {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                             </select>
 
-                            <div style={{ marginLeft: 'auto', background: '#f1f5f9', padding: '0.5rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
-                                {sortedStudents.length} Students
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ background: '#f1f5f9', padding: '0.5rem 0.8rem', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>
+                                    {displayedStudents.length} Students
+                                </div>
+                                <button
+                                    onClick={() => setShowAddStudentModal(true)}
+                                    title="Add Student Manually"
+                                    style={{
+                                        background: '#6366f1', color: '#fff', border: 'none',
+                                        borderRadius: '8px', padding: '0.5rem 0.75rem',
+                                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                        fontWeight: 600, fontSize: '0.85rem', transition: 'background 0.2s'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.background = '#4f46e5'}
+                                    onMouseLeave={e => e.currentTarget.style.background = '#6366f1'}
+                                >
+                                    <Plus size={15} /> Add Student
+                                </button>
                             </div>
                         </div>
 
@@ -529,7 +592,7 @@ const DepartmentDetail = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {sortedStudents.map((s, i) => (
+                                        {displayedStudents.map((s, i) => (
                                             <tr key={s.id} style={{
                                                 borderBottom: '1px solid var(--border)',
                                                 background: i % 2 === 0 ? 'transparent' : 'var(--card-bg)',
@@ -596,174 +659,234 @@ const DepartmentDetail = () => {
                             </div>
                         )}
                     </div>
-                )}
+                )
+                }
 
                 {/* ── IMPORT TAB ────────────────────────────────────────── */}
-                {tab === 'Import' && (
-                    <div style={{ maxWidth: '680px' }}>
-                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', padding: '2rem', marginBottom: '1.5rem' }}>
-                            <h3 style={{ margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <FileSpreadsheet size={20} style={{ color: 'var(--accent)' }} /> Import Students from Excel / CSV
-                            </h3>
-                            <p style={{ margin: '0 0 1.5rem', color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6 }}>
-                                Upload an Excel or CSV file with columns: <strong>Name</strong>, <strong>GitHub</strong>, <strong>ID</strong> (student ID), <strong>Email</strong>. Students will be linked to the <strong>{dept.name}</strong> department automatically.
-                            </p>
+                {
+                    tab === 'Import' && (
+                        <div style={{ maxWidth: '680px' }}>
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', padding: '2rem', marginBottom: '1.5rem' }}>
+                                <h3 style={{ margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <FileSpreadsheet size={20} style={{ color: 'var(--accent)' }} /> Import Students from Excel / CSV
+                                </h3>
+                                <p style={{ margin: '0 0 1.5rem', color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.6 }}>
+                                    Upload an Excel or CSV file with columns: <strong>Name</strong>, <strong>GitHub</strong>, <strong>ID</strong> (student ID), <strong>Email</strong>. Students will be linked to the <strong>{dept.name}</strong> department automatically.
+                                </p>
 
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.88rem' }}>
-                                    Assign to Classroom <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
-                                </label>
-                                <select value={importClassroomId} onChange={e => setImportClassroomId(e.target.value)}
-                                    style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none' }}
-                                >
-                                    <option value="">No classroom (department-level only)</option>
-                                    {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
-                            </div>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.88rem' }}>
+                                        Assign to Classroom <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
+                                    </label>
+                                    <select value={importClassroomId} onChange={e => setImportClassroomId(e.target.value)}
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none' }}
+                                    >
+                                        <option value="">No classroom (department-level only)</option>
+                                        {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
 
-                            <div style={{ marginBottom: '1.25rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.88rem' }}>Select File *</label>
-                                <div
-                                    style={{
-                                        border: '2px dashed var(--border)', borderRadius: '10px', padding: '2rem',
-                                        textAlign: 'center', cursor: 'pointer',
-                                        transition: 'border-color 0.2s', background: 'var(--bg)'
-                                    }}
-                                    onClick={() => fileRef.current?.click()}
-                                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
-                                    onDragLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                                    onDrop={e => {
-                                        e.preventDefault();
-                                        e.currentTarget.style.borderColor = 'var(--border)';
-                                        const f = e.dataTransfer.files[0];
-                                        if (f) setImportFile(f);
-                                    }}
-                                >
-                                    <Upload size={36} style={{ color: 'var(--accent)', marginBottom: '0.75rem' }} />
-                                    <p style={{ margin: '0 0 0.4rem', fontWeight: 600 }}>
-                                        {importFile ? importFile.name : 'Drop file here or click to browse'}
-                                    </p>
-                                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Supports .xlsx, .xls, .csv</p>
-                                    <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
-                                        onChange={e => setImportFile(e.target.files[0])}
-                                    />
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <label style={{ display: 'block', marginBottom: '0.4rem', fontWeight: 600, fontSize: '0.88rem' }}>Select File *</label>
+                                    <div
+                                        style={{
+                                            border: '2px dashed var(--border)', borderRadius: '10px', padding: '2rem',
+                                            textAlign: 'center', cursor: 'pointer',
+                                            transition: 'border-color 0.2s', background: 'var(--bg)'
+                                        }}
+                                        onClick={() => fileRef.current?.click()}
+                                        onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                                        onDragLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                                        onDrop={e => {
+                                            e.preventDefault();
+                                            e.currentTarget.style.borderColor = 'var(--border)';
+                                            const f = e.dataTransfer.files[0];
+                                            if (f) setImportFile(f);
+                                        }}
+                                    >
+                                        <Upload size={36} style={{ color: 'var(--accent)', marginBottom: '0.75rem' }} />
+                                        <p style={{ margin: '0 0 0.4rem', fontWeight: 600 }}>
+                                            {importFile ? importFile.name : 'Drop file here or click to browse'}
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Supports .xlsx, .xls, .csv</p>
+                                        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }}
+                                            onChange={e => setImportFile(e.target.files[0])}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                    {importFile && (
+                                        <button onClick={() => { setImportFile(null); if (fileRef.current) fileRef.current.value = ''; }}
+                                            style={{ padding: '0.55rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <X size={15} /> Clear
+                                        </button>
+                                    )}
+                                    <button onClick={handleImport} disabled={!importFile || importing} className="btn-primary"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.5rem', opacity: (!importFile || importing) ? 0.6 : 1 }}>
+                                        {importing ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={15} />}
+                                        {importing ? 'Importing...' : 'Import Students'}
+                                    </button>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                {importFile && (
-                                    <button onClick={() => { setImportFile(null); if (fileRef.current) fileRef.current.value = ''; }}
-                                        style={{ padding: '0.55rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <X size={15} /> Clear
-                                    </button>
-                                )}
-                                <button onClick={handleImport} disabled={!importFile || importing} className="btn-primary"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.5rem', opacity: (!importFile || importing) ? 0.6 : 1 }}>
-                                    {importing ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={15} />}
-                                    {importing ? 'Importing...' : 'Import Students'}
-                                </button>
+                            {/* Import Result */}
+                            {importResult && (
+                                <div style={{
+                                    background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem'
+                                }}>
+                                    <h4 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <CheckCircle size={18} style={{ color: '#22c55e' }} /> Import Complete
+                                    </h4>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                                        {[
+                                            { label: 'Added', value: importResult.added, color: '#22c55e' },
+                                            { label: 'Updated', value: importResult.updated || 0, color: '#6366f1' },
+                                            { label: 'Skipped', value: importResult.skipped, color: '#f59e0b' },
+                                            { label: 'Errors', value: importResult.errors?.length || 0, color: '#ef4444' },
+                                        ].map(r => (
+                                            <div key={r.label} style={{ textAlign: 'center', padding: '0.75rem', background: 'var(--bg)', borderRadius: '8px', border: `1px solid ${r.color}33` }}>
+                                                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: r.color }}>{r.value}</div>
+                                                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{r.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {importResult.errors?.length > 0 && (
+                                        <div style={{ background: '#ef444411', border: '1px solid #ef444433', borderRadius: '8px', padding: '0.75rem' }}>
+                                            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#ef4444', fontSize: '0.88rem' }}>Errors:</p>
+                                            {importResult.errors.map((e, i) => <p key={i} style={{ margin: '0.25rem 0', fontSize: '0.83rem', color: '#ef4444' }}>• {e}</p>)}
+                                        </div>
+                                    )}
+                                    <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                        ℹ️ GitHub profiles are being fetched in the background. Check back in a few minutes.
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Expected Format */}
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginTop: '1.5rem' }}>
+                                <h4 style={{ margin: '0 0 0.75rem' }}>Expected File Format</h4>
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--bg)' }}>
+                                                {['Name', 'GitHub', 'ID', 'Email'].map(h => (
+                                                    <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', border: '1px solid var(--border)', color: 'var(--accent)' }}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {[
+                                                ['John Doe', 'johndoe', '21CS001', 'john@college.edu'],
+                                                ['Jane Smith', 'janesmith', '21CS002', 'jane@college.edu'],
+                                                ['Alex Kumar', 'https://github.com/alexkumar', '21CS003', 'alex@college.edu'],
+                                            ].map((row, i) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    {row.map((cell, j) => (
+                                                        <td key={j} style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.83rem' }}>{cell}</td>
+                                                    ))}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                    GitHub column accepts plain usernames or full GitHub profile URLs. Student ID is used as the default password.
+                                </p>
                             </div>
                         </div>
+                    )
+                }
 
-                        {/* Import Result */}
-                        {importResult && (
-                            <div style={{
-                                background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem'
-                            }}>
-                                <h4 style={{ margin: '0 0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <CheckCircle size={18} style={{ color: '#22c55e' }} /> Import Complete
-                                </h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1rem' }}>
+                {/* Create Classroom Modal */}
+                {
+                    showClassroomModal && (
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                            <div style={{ background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '540px', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                    <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Create Classroom in {dept.name}</h2>
+                                    <button onClick={() => setShowClassroomModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
                                     {[
-                                        { label: 'Added', value: importResult.added, color: '#22c55e' },
-                                        { label: 'Updated', value: importResult.updated || 0, color: '#6366f1' },
-                                        { label: 'Skipped', value: importResult.skipped, color: '#f59e0b' },
-                                        { label: 'Errors', value: importResult.errors?.length || 0, color: '#ef4444' },
-                                    ].map(r => (
-                                        <div key={r.label} style={{ textAlign: 'center', padding: '0.75rem', background: 'var(--bg)', borderRadius: '8px', border: `1px solid ${r.color}33` }}>
-                                            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: r.color }}>{r.value}</div>
-                                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{r.label}</div>
+                                        { label: 'Classroom Name *', key: 'name', placeholder: 'e.g. CSE-A Morning Batch', full: true },
+                                        { label: 'Description', key: 'description', placeholder: 'Optional description', full: true },
+                                        { label: 'Subject Code', key: 'subject_code', placeholder: 'CS401' },
+                                        { label: 'Batch', key: 'batch', placeholder: '2021-2025' },
+                                        { label: 'Semester', key: 'semester', placeholder: '1' },
+                                        { label: 'Year', key: 'year', placeholder: '2025' },
+                                        { label: 'Faculty Name', key: 'faculty_name', placeholder: 'Prof. Kumar' },
+                                        { label: 'Faculty Email', key: 'faculty_email', placeholder: 'faculty@college.edu' },
+                                    ].map(field => (
+                                        <div key={field.key} style={{ gridColumn: field.full ? '1 / -1' : undefined }}>
+                                            <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.85rem' }}>{field.label}</label>
+                                            <input value={classroomForm[field.key]} onChange={e => setClassroomForm(p => ({ ...p, [field.key]: e.target.value }))}
+                                                placeholder={field.placeholder}
+                                                style={{ width: '100%', padding: '0.55rem 0.7rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                                            />
                                         </div>
                                     ))}
                                 </div>
-                                {importResult.errors?.length > 0 && (
-                                    <div style={{ background: '#ef444411', border: '1px solid #ef444433', borderRadius: '8px', padding: '0.75rem' }}>
-                                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, color: '#ef4444', fontSize: '0.88rem' }}>Errors:</p>
-                                        {importResult.errors.map((e, i) => <p key={i} style={{ margin: '0.25rem 0', fontSize: '0.83rem', color: '#ef4444' }}>• {e}</p>)}
-                                    </div>
-                                )}
-                                <p style={{ margin: '0.75rem 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                    ℹ️ GitHub profiles are being fetched in the background. Check back in a few minutes.
-                                </p>
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                                    <button onClick={() => setShowClassroomModal(false)} className="btn-secondary" style={{ padding: '0.6rem 1.2rem' }}>Cancel</button>
+                                    <button onClick={handleCreateClassroom} className="btn-primary" style={{ padding: '0.6rem 1.5rem' }}>Create Classroom</button>
+                                </div>
                             </div>
-                        )}
-
-                        {/* Expected Format */}
-                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginTop: '1.5rem' }}>
-                            <h4 style={{ margin: '0 0 0.75rem' }}>Expected File Format</h4>
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                    <thead>
-                                        <tr style={{ background: 'var(--bg)' }}>
-                                            {['Name', 'GitHub', 'ID', 'Email'].map(h => (
-                                                <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', border: '1px solid var(--border)', color: 'var(--accent)' }}>{h}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {[
-                                            ['John Doe', 'johndoe', '21CS001', 'john@college.edu'],
-                                            ['Jane Smith', 'janesmith', '21CS002', 'jane@college.edu'],
-                                            ['Alex Kumar', 'https://github.com/alexkumar', '21CS003', 'alex@college.edu'],
-                                        ].map((row, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                {row.map((cell, j) => (
-                                                    <td key={j} style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.83rem' }}>{cell}</td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                GitHub column accepts plain usernames or full GitHub profile URLs. Student ID is used as the default password.
-                            </p>
                         </div>
-                    </div>
-                )}
+                    )
+                }
 
-                {/* Create Classroom Modal */}
-                {showClassroomModal && (
+                {/* Add Student Modal */}
+                {showAddStudentModal && (
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                        <div style={{ background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '540px', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                        <div style={{ background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '480px', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Create Classroom in {dept.name}</h2>
-                                <button onClick={() => setShowClassroomModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
+                                <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Plus size={20} style={{ color: 'var(--accent)' }} /> Add Student Manually
+                                </h2>
+                                <button onClick={() => { setShowAddStudentModal(false); setNewStudentForm({ name: '', github_username: '', student_id: '', email: '', department: '', classroom_id: '' }); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                                    <X size={22} />
+                                </button>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                            <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {[
-                                    { label: 'Classroom Name *', key: 'name', placeholder: 'e.g. CSE-A Morning Batch', full: true },
-                                    { label: 'Description', key: 'description', placeholder: 'Optional description', full: true },
-                                    { label: 'Subject Code', key: 'subject_code', placeholder: 'CS401' },
-                                    { label: 'Batch', key: 'batch', placeholder: '2021-2025' },
-                                    { label: 'Semester', key: 'semester', placeholder: '1' },
-                                    { label: 'Year', key: 'year', placeholder: '2025' },
-                                    { label: 'Faculty Name', key: 'faculty_name', placeholder: 'Prof. Kumar' },
-                                    { label: 'Faculty Email', key: 'faculty_email', placeholder: 'faculty@college.edu' },
+                                    { label: 'Full Name *', key: 'name', placeholder: 'e.g. John Doe', required: true, type: 'text' },
+                                    { label: 'GitHub Username *', key: 'github_username', placeholder: 'e.g. johndoe or github.com/johndoe', required: true, type: 'text' },
+                                    { label: 'Student ID / Roll No', key: 'student_id', placeholder: 'e.g. 21CS101 (also used as default password)', required: false, type: 'text' },
+                                    { label: 'Email Address', key: 'email', placeholder: 'e.g. john@college.edu', required: false, type: 'email' },
+                                    { label: 'Department', key: 'department', placeholder: dept?.name || 'e.g. CSE, AIML', required: false, type: 'text' },
                                 ].map(field => (
-                                    <div key={field.key} style={{ gridColumn: field.full ? '1 / -1' : undefined }}>
-                                        <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.85rem' }}>{field.label}</label>
-                                        <input value={classroomForm[field.key]} onChange={e => setClassroomForm(p => ({ ...p, [field.key]: e.target.value }))}
+                                    <div key={field.key}>
+                                        <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.87rem' }}>{field.label}</label>
+                                        <input
+                                            type={field.type}
+                                            required={field.required}
                                             placeholder={field.placeholder}
-                                            style={{ width: '100%', padding: '0.55rem 0.7rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                                            value={newStudentForm[field.key]}
+                                            onChange={e => setNewStudentForm(p => ({ ...p, [field.key]: e.target.value }))}
+                                            style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', fontSize: '0.9rem' }}
                                         />
                                     </div>
                                 ))}
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-                                <button onClick={() => setShowClassroomModal(false)} className="btn-secondary" style={{ padding: '0.6rem 1.2rem' }}>Cancel</button>
-                                <button onClick={handleCreateClassroom} className="btn-primary" style={{ padding: '0.6rem 1.5rem' }}>Create Classroom</button>
-                            </div>
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.87rem' }}>Classroom (Optional)</label>
+                                    <select
+                                        value={newStudentForm.classroom_id}
+                                        onChange={e => setNewStudentForm(p => ({ ...p, classroom_id: e.target.value }))}
+                                        style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', fontSize: '0.9rem' }}
+                                    >
+                                        <option value="">None</option>
+                                        {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </select>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                                    <button type="button" onClick={() => setShowAddStudentModal(false)} className="btn-secondary" style={{ padding: '0.6rem 1.2rem' }}>Cancel</button>
+                                    <button type="submit" disabled={addingStudent} className="btn-primary" style={{ padding: '0.6rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                        {addingStudent ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
+                                        {addingStudent ? 'Adding...' : 'Add Student'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}
@@ -772,8 +895,8 @@ const DepartmentDetail = () => {
                     __html: `
                     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                 ` }} />
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 
