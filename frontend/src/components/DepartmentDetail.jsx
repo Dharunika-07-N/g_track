@@ -146,6 +146,20 @@ const DepartmentDetail = () => {
         }
     };
 
+    const handleDeleteStudent = async (studentId) => {
+        if (!window.confirm('Are you sure you want to remove this student?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_BASE}/students/${studentId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showToast('Student removed successfully');
+            fetchStudents();
+        } catch (e) {
+            showToast('Failed to remove student', 'error');
+        }
+    };
+
     const handleImport = async () => {
         if (!importFile) { showToast('Please select a file', 'error'); return; }
         setImporting(true);
@@ -502,13 +516,14 @@ const DepartmentDetail = () => {
                                                 { label: 'Score', field: 'activity_score' },
                                                 { label: 'Active Days', field: 'active_days' },
                                                 { label: 'Last Sync', field: 'last_updated' },
+                                                { label: 'Actions', field: 'actions' },
                                             ].map(col => (
-                                                <th key={col.field} onClick={() => handleSort(col.field)} style={{
-                                                    padding: '0.75rem 1rem', textAlign: 'left', cursor: 'pointer',
+                                                <th key={col.field} onClick={() => col.field !== 'actions' && handleSort(col.field)} style={{
+                                                    padding: '0.75rem 1rem', textAlign: 'left', cursor: col.field !== 'actions' ? 'pointer' : 'default',
                                                     fontWeight: 600, color: sortBy === col.field ? 'var(--accent)' : 'var(--text-muted)',
                                                     whiteSpace: 'nowrap', userSelect: 'none'
                                                 }}>
-                                                    {col.label}<SortIcon field={col.field} />
+                                                    {col.label}{col.field !== 'actions' && <SortIcon field={col.field} />}
                                                 </th>
                                             ))}
                                         </tr>
@@ -557,6 +572,22 @@ const DepartmentDetail = () => {
                                                 <td style={{ padding: '0.7rem 1rem', color: 'var(--text-muted)' }}>{s.active_days}</td>
                                                 <td style={{ padding: '0.7rem 1rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                                                     {s.last_updated ? new Date(s.last_updated).toLocaleDateString() : '—'}
+                                                </td>
+                                                <td style={{ padding: '0.7rem 1rem' }}>
+                                                    <button
+                                                        onClick={() => handleDeleteStudent(s.id)}
+                                                        style={{
+                                                            background: 'none', border: 'none', color: '#ef4444',
+                                                            cursor: 'pointer', padding: '0.4rem', borderRadius: '6px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            transition: 'background 0.2s'
+                                                        }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = '#ef444411'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                                        title="Remove Student"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}

@@ -12,6 +12,7 @@ import pandas as pd
 import io
 import asyncio
 import httpx
+from dependencies import require_admin
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -254,12 +255,19 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{student_id}")
-async def delete_student(student_id: int, db: Session = Depends(get_db)):
+async def delete_student(
+    student_id: int, 
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin)
+):
     student = db.query(Student).filter(Student.id == student_id).first()
-    if not student: raise HTTPException(status_code=404, detail="Student not found")
+    if not student: 
+        raise HTTPException(status_code=404, detail="Student not found")
+    
+    # Logical delete (archiving)
     student.status = "archived"
     db.commit()
-    return {"message": "Student archived"}
+    return {"message": f"Student {student.name} archived successfully"}
 
 @router.post("/sync-all")
 async def sync_all_students(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
