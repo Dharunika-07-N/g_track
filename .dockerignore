@@ -1,0 +1,11 @@
+node_modules
+dist
+__pycache__
+*.db
+.env
+.git
+.github
+backend/tracker.db
+**/node_modules
+**/dist
+**/__pycache__

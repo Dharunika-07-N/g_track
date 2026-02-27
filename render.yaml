@@ -1,0 +1,29 @@
+services:
+  # 1. PostgreSQL Database
+  - type: database
+    name: github-tracker-db
+    databaseName: github_tracker
+    user: github_user
+    plan: free
+
+  # 2. Web Service (Backend + Frontend)
+  - type: web
+    name: github-activity-tracker
+    env: docker
+    plan: free
+    healthCheckPath: /api/ping
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: github-tracker-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: GITHUB_TOKEN
+        sync: false # Set this manually in Render UI secrets
+      - key: PORT
+        value: 8000
