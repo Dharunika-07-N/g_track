@@ -210,6 +210,71 @@ async def update_student_data_background(student_id: int, start_date: Optional[s
     finally:
         db.close()
 
+@router.post("/", response_model=StudentRead)
+async def create_student(
+    student: StudentCreate, 
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin)
+):
+    """Manually add a single student."""
+    from routers.auth import hash_password
+    
+    # Clean github username
+    clean_username = student.github_username.strip().rstrip('/').strip('@').split('/')[-1]
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Invalid GitHub username")
+    
+    # Check for duplicates
+    existing = db.query(Student).filter(Student.github_username == clean_username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="A student with this GitHub username already exists")
+    
+    # Default password = student_id if provided, else "12345"
+    password_to_use = student.student_id if student.student_id else "12345"
+    hashed_pw = hash_password(password_to_use)
+    
+    new_student = Student(
+        github_username=clean_username,
+        name=student.name,
+        student_id=student.student_id,
+        email=student.email,
+        department=student.department,
+        classroom_id=student.classroom_id,
+        profile_url=student.profile_url or f"https://github.com/{clean_username}",
+        password_hash=hashed_pw
+    )
+    db.add(new_student)
+    db.commit()
+    db.refresh(new_student)
+    
+    # Trigger background sync
+    background_tasks.add_task(update_student_data_background, new_student.id)
+    
+    return {
+        "id": new_student.id,
+        "name": new_student.name,
+        "github_username": new_student.github_username,
+        "student_id": new_student.student_id,
+        "email": new_student.email,
+        "department": new_student.department,
+        "classroom_id": new_student.classroom_id,
+        "department_id": None,
+        "profile_url": new_student.profile_url,
+        "avatar_url": new_student.avatar_url,
+        "total_commits": 0,
+        "total_contributions": 0,
+        "pull_requests": 0,
+        "issues": 0,
+        "reviews": 0,
+        "repo_count": 0,
+        "total_events": 0,
+        "activity_score": 0,
+        "active_days": 0,
+        "last_updated": new_student.last_updated or datetime.utcnow(),
+        "status": new_student.status or "active"
+    }
+
 @router.post("/upload")
 async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = File(...), classroom_id: Optional[int] = None, db: Session = Depends(get_db)):
     if not file.filename.endswith(('.xlsx', '.xls', '.csv')): raise HTTPException(status_code=400, detail="Invalid file type")
