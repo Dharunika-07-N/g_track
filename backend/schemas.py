@@ -2,6 +2,28 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Optional, Dict
 
+# ── Department ────────────────────────────────────────────────────────────────
+class DepartmentBase(BaseModel):
+    name: str
+    code: str
+    description: Optional[str] = None
+    hod_name: Optional[str] = None
+    hod_email: Optional[str] = None
+    is_active: bool = True
+
+class DepartmentCreate(DepartmentBase):
+    pass
+
+class DepartmentRead(DepartmentBase):
+    id: int
+    created_at: datetime
+    created_by: Optional[int] = None
+    student_count: Optional[int] = 0
+    classroom_count: Optional[int] = 0
+    class Config:
+        from_attributes = True
+# ─────────────────────────────────────────────────────────────────────────────
+
 class UserBase(BaseModel):
     github_username: str
     name: Optional[str] = None
@@ -54,9 +76,11 @@ class StudentCreate(StudentBase):
 class StudentRead(StudentBase):
     id: int
     classroom_id: Optional[int]
+    department_id: Optional[int] = None
     profile_url: Optional[str]
     avatar_url: Optional[str]
     total_commits: int
+    total_contributions: Optional[int] = 0
     pull_requests: int
     issues: int
     reviews: int

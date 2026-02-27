@@ -26,6 +26,7 @@ from routers.assignments import router as assignments_router
 from routers.submissions import router as submissions_router
 from routers.analytics import router as analytics_router
 from routers.hod import router as hod_router
+from routers.departments import router as departments_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -85,6 +86,7 @@ app.include_router(assignments_router, prefix="/api", dependencies=api_deps)
 app.include_router(submissions_router, prefix="/api", dependencies=api_deps)
 app.include_router(analytics_router, prefix="/api", dependencies=api_deps)
 app.include_router(hod_router, prefix="/api", dependencies=api_deps)
+app.include_router(departments_router, prefix="/api", dependencies=api_deps)
 
 # Ping endpoint
 @app.get("/api/ping")
@@ -168,4 +170,4 @@ async def spa_fallback(request: Request, full_path: str):
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)

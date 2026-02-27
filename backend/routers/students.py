@@ -111,7 +111,8 @@ async def read_students(
             "last_updated": s.last_updated,
             
             # Dynamic fields
-            "total_commits": stat["commits"],
+            "total_contributions": stat["commits"], 
+            "total_commits": stat["commits"], # For now keep them same if logs only have total
             "pull_requests": stat["prs"],
             "issues": stat["issues"],
             "reviews": stat["reviews"],
@@ -157,6 +158,7 @@ async def update_student_data_background(student_id: int, start_date: Optional[s
         
         # Update student record (Totals)
         student.total_commits = stats["total_commits"]
+        student.total_contributions = stats.get("total_contributions", student.total_commits)
         student.pull_requests = stats["pull_requests"]
         student.repo_count = stats["repo_count"]
         student.active_days = stats["active_days"]

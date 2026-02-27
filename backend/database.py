@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -34,6 +34,22 @@ if DATABASE_URL.startswith("sqlite"):
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+class Department(Base):
+    __tablename__ = "departments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)      # e.g. "Computer Science"
+    code = Column(String, unique=True, index=True)      # e.g. "CSE"
+    description = Column(Text, nullable=True)
+    hod_name = Column(String, nullable=True)
+    hod_email = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    classrooms = relationship("Classroom", back_populates="department_obj", foreign_keys="Classroom.department_id")
+    students = relationship("Student", back_populates="department_obj", foreign_keys="Student.department_id")
 
 class User(Base):
     __tablename__ = "users"
@@ -74,6 +90,7 @@ class Classroom(Base):
     faculty_name = Column(String)
     faculty_email = Column(String)
     department = Column(String, nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     batch = Column(String, nullable=True)
     
     is_archived = Column(Boolean, default=False)
@@ -82,6 +99,7 @@ class Classroom(Base):
     owner = relationship("User", back_populates="classrooms")
     students = relationship("Student", back_populates="classroom")
     assignments = relationship("Assignment", back_populates="classroom")
+    department_obj = relationship("Department", back_populates="classrooms", foreign_keys=[department_id])
 
 class Student(Base):
     __tablename__ = "students"
@@ -92,6 +110,7 @@ class Student(Base):
     email = Column(String)
     password_hash = Column(String, nullable=True)
     department = Column(String, nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     github_username = Column(String, unique=True, index=True)
     profile_url = Column(String)
     avatar_url = Column(String)
@@ -102,6 +121,7 @@ class Student(Base):
     
     # Metrics (These will now be 'Current/Overall' cached stats)
     total_commits = Column(Integer, default=0)
+    total_contributions = Column(Integer, default=0)
     pull_requests = Column(Integer, default=0)
     issues = Column(Integer, default=0)
     reviews = Column(Integer, default=0)
@@ -119,6 +139,7 @@ class Student(Base):
 
     # Relationships
     classroom = relationship("Classroom", back_populates="students")
+    department_obj = relationship("Department", back_populates="students", foreign_keys=[department_id])
     logs = relationship("ActivityLog", back_populates="student", cascade="all, delete-orphan")
     submissions = relationship("Submission", back_populates="student")
 

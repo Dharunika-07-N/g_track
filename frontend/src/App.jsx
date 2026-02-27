@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import CurtainNav from './components/CurtainNav';
 import ClassroomList from './components/ClassroomList';
 import ClassroomDetail from './components/ClassroomDetail';
@@ -9,47 +9,28 @@ import AnalyticsPage from './components/AnalyticsPage';
 import LoginPage from './components/LoginPage';
 import RegisterPage from './components/RegisterPage';
 import HodDashboard from './components/dashboards/HodDashboard';
+import DepartmentsPage from './components/DepartmentsPage';
+import DepartmentDetail from './components/DepartmentDetail';
+import DepartmentHome from './components/DepartmentHome';
 import axios from 'axios';
+import { API_BASE } from './config';
 
-// Global axios interceptor for authentication
+// Global axios interceptor for auth
 axios.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
-import {
-  Github,
-  Activity,
-  Users,
-  BookOpen,
-  TrendingUp,
-  Clock,
-  Calendar,
-  Trophy,
-  ArrowRight
-} from 'lucide-react';
-
-import { API_BASE } from './config';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const role = localStorage.getItem('role');
-
     if (token) {
-      axios.get(`${API_BASE}/auth/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-        .then(res => {
-          setIsAuthenticated(true);
-          setUserRole(res.data.role);
-        })
+      axios.get(`${API_BASE}/auth/me`)
+        .then(() => setIsAuthenticated(true))
         .catch(() => {
           localStorage.removeItem('token');
           localStorage.removeItem('role');
@@ -64,14 +45,12 @@ function App() {
     localStorage.setItem('token', token);
     localStorage.setItem('role', role);
     setIsAuthenticated(true);
-    setUserRole(role);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     setIsAuthenticated(false);
-    setUserRole(null);
     window.location.href = '/login';
   };
 
@@ -89,14 +68,24 @@ function App() {
         <div className="layout">
           <CurtainNav onLogout={handleLogout} />
           <Routes>
-            <Route path="/" element={<HodDashboard />} />
-            <Route path="/dashboard" element={<Navigate to="/" />} />
+            {/* The new "Interface Layer" (Landing Page) */}
+            <Route path="/" element={<DepartmentHome />} />
+
+            {/* Original Dashboard */}
+            <Route path="/dashboard" element={<HodDashboard />} />
+
+            {/* Department Management */}
+            <Route path="/departments" element={<DepartmentsPage />} />
+            <Route path="/departments/:deptId" element={<DepartmentDetail />} />
+
+            {/* Other existing routes */}
             <Route path="/classrooms" element={<ClassroomList />} />
             <Route path="/classrooms/:id" element={<ClassroomDetail />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/assignments" element={<AssignmentsPage />} />
             <Route path="/analysis" element={<AnalyticsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

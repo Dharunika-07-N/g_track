@@ -9,7 +9,8 @@ import {
     Menu,
     X,
     History,
-    LogOut
+    LogOut,
+    Building2
 } from 'lucide-react';
 
 const CurtainNav = ({ onLogout }) => {
@@ -18,6 +19,7 @@ const CurtainNav = ({ onLogout }) => {
 
     const menuItems = [
         { icon: <LayoutDashboard />, label: 'Dashboard', path: '/' },
+        { icon: <Building2 />, label: 'Departments', path: '/departments' },
         { icon: <BookOpen />, label: 'Classrooms', path: '/classrooms' },
         { icon: <Users />, label: 'Students', path: '/students' },
         { icon: <Award />, label: 'Assignments', path: '/assignments' },
