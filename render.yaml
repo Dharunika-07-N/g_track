@@ -1,12 +1,10 @@
-services:
-  # 1. PostgreSQL Database
-  - type: database
-    name: github-tracker-db
+databases:
+  - name: github-tracker-db
     databaseName: github_tracker
     user: github_user
     plan: free
 
-  # 2. Web Service (Backend + Frontend)
+services:
   - type: web
     name: github-activity-tracker
     env: docker
