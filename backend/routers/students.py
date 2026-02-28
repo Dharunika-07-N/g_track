@@ -12,7 +12,6 @@ import pandas as pd
 import io
 import asyncio
 import httpx
-import os
 from dependencies import require_admin
 
 router = APIRouter(prefix="/students", tags=["students"])
@@ -138,8 +137,7 @@ async def update_student_data_background(student_id: int, start_date: Optional[s
     """
     # Use dynamic dates if not provided
     if not start_date:
-        # Fetch practically everything (all-time) by defaulting to a very early date
-        start_date = os.getenv("SEMESTER_START_DATE", "2000-01-01") 
+        start_date = "2025-12-01" # Semester Start
     if not end_date:
         end_date = datetime.utcnow().strftime("%Y-%m-%d")
     db = SessionLocal()
