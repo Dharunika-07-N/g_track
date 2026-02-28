@@ -502,6 +502,7 @@ async def upload_dept_students(
                         # Update existing student's dept and optional fields
                         exists.department_id = dept_id
                         exists.department = dept.name
+                        exists.status = "active" # Re-activate if it was archived
                         if classroom_id: exists.classroom_id = classroom_id
                         
                         # Only update name/email if currently generic
