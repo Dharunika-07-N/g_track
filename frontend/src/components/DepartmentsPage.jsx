@@ -107,7 +107,7 @@ const DepartmentsPage = () => {
           display: 'flex', alignItems: 'center', gap: '0.5rem',
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)', fontWeight: 600
         }}>
-          {toast.type === 'error' ? <AlertCircle size={18}/> : <CheckCircle size={18}/>}
+          {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
           {toast.msg}
         </div>
       )}
@@ -143,7 +143,7 @@ const DepartmentsPage = () => {
         />
         {search && (
           <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '0.6rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-            <X size={15}/>
+            <X size={15} />
           </button>
         )}
       </div>
@@ -228,37 +228,37 @@ const DepartmentsPage = () => {
                     title="Edit"
                     style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.4rem', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex' }}
                   >
-                    <Pencil size={15}/>
+                    <Pencil size={15} />
                   </button>
                   <button
                     onClick={() => handleDelete(dept)}
                     title="Delete"
                     style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.4rem', cursor: 'pointer', color: '#ef4444', display: 'flex' }}
                   >
-                    <Trash2 size={15}/>
+                    <Trash2 size={15} />
                   </button>
                 </div>
               </div>
 
               {dept.hod_name && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  <GraduationCap size={14}/>
+                  <GraduationCap size={14} />
                   <span>{dept.hod_name}</span>
                   {dept.hod_email && (
-                    <><span>·</span><Mail size={12}/><span style={{ fontSize: '0.8rem' }}>{dept.hod_email}</span></>
+                    <><span>·</span><Mail size={12} /><span style={{ fontSize: '0.8rem' }}>{dept.hod_email}</span></>
                   )}
                 </div>
               )}
 
               <div style={{ display: 'flex', gap: '1.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem', marginTop: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                  <Users size={14}/> <strong style={{ color: 'var(--text)' }}>{dept.student_count}</strong> students
+                  <Users size={14} /> <strong style={{ color: 'var(--text)' }}>{dept.student_count}</strong> students
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                  <BookOpen size={14}/> <strong style={{ color: 'var(--text)' }}>{dept.classroom_count}</strong> classrooms
+                  <BookOpen size={14} /> <strong style={{ color: 'var(--text)' }}>{dept.classroom_count}</strong> classrooms
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--accent)', fontSize: '0.85rem', fontWeight: 600 }}>
-                  View <ChevronRight size={14}/>
+                  View <ChevronRight size={14} />
                 </div>
               </div>
             </div>
@@ -269,20 +269,23 @@ const DepartmentsPage = () => {
       {/* Create / Edit Modal */}
       {showModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+          backdropFilter: 'blur(10px)'
         }}>
           <div style={{
-            background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem',
-            width: '100%', maxWidth: '520px', border: '1px solid var(--border)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.4)'
+            background: '#ffffff', borderRadius: '16px', padding: '2.5rem',
+            width: '100%', maxWidth: '540px', border: '1px solid var(--border)',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
+            position: 'relative',
+            color: 'var(--text)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700 }}>
                 {editDept ? 'Edit Department' : 'Create Department'}
               </h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X size={22}/>
+                <X size={22} />
               </button>
             </div>
 
@@ -291,28 +294,28 @@ const DepartmentsPage = () => {
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.88rem' }}>Department Name *</label>
                 <input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
                   placeholder="e.g. Computer Science"
-                  style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                 />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.88rem' }}>Department Code *</label>
                 <input value={formData.code} onChange={e => setFormData(p => ({ ...p, code: e.target.value.toUpperCase() }))}
                   placeholder="e.g. CSE"
-                  style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                 />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.88rem' }}>HOD Name</label>
                 <input value={formData.hod_name} onChange={e => setFormData(p => ({ ...p, hod_name: e.target.value }))}
                   placeholder="Head of Department"
-                  style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                 />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={{ display: 'block', marginBottom: '0.35rem', fontWeight: 600, fontSize: '0.88rem' }}>HOD Email</label>
                 <input value={formData.hod_email} onChange={e => setFormData(p => ({ ...p, hod_email: e.target.value }))}
                   placeholder="hod@college.edu"
-                  style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                 />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -320,14 +323,14 @@ const DepartmentsPage = () => {
                 <textarea value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
                   placeholder="Brief description..."
                   rows={3}
-                  style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', resize: 'vertical', fontFamily: 'inherit', fontSize: '0.95rem', boxSizing: 'border-box' }}
                 />
               </div>
               <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <label style={{ fontWeight: 600, fontSize: '0.88rem' }}>Active</label>
                 <button onClick={() => setFormData(p => ({ ...p, is_active: !p.is_active }))}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: formData.is_active ? '#22c55e' : '#78716c', padding: 0, display: 'flex' }}>
-                  {formData.is_active ? <ToggleRight size={32}/> : <ToggleLeft size={32}/>}
+                  {formData.is_active ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
                 </button>
                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{formData.is_active ? 'Active' : 'Inactive'}</span>
               </div>
@@ -336,7 +339,7 @@ const DepartmentsPage = () => {
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowModal(false)} className="btn-secondary" style={{ padding: '0.6rem 1.25rem' }}>Cancel</button>
               <button onClick={handleSave} className="btn-primary" disabled={saving} style={{ padding: '0.6rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                {saving ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }}/> : null}
+                {saving ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : null}
                 {editDept ? 'Update' : 'Create'}
               </button>
             </div>

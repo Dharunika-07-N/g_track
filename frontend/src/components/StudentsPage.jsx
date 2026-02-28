@@ -456,8 +456,8 @@ const StudentsPage = () => {
                 )}
             </div>
             {showAddModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, backdropFilter: 'blur(8px)' }}>
-                    <div className="card glass" style={{ width: '100%', maxWidth: '450px', padding: '2rem' }}>
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(10px)', padding: '1rem' }}>
+                    <div style={{ background: '#ffffff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '480px', border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <h2 style={{ fontSize: '1.5rem', margin: 0 }}>Add Student Manually</h2>
                             <button className="btn btn-secondary glass" style={{ padding: '0.25rem', minWidth: 'auto', border: 'none' }} onClick={() => setShowAddModal(false)}>
