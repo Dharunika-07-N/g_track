@@ -168,6 +168,23 @@ const DepartmentDetail = () => {
         }
     };
 
+    const handleDeleteAllStudents = async () => {
+        if (!window.confirm('WARNING: This will remove ALL students from this department. Are you sure?')) return;
+        if (!window.confirm('Final confirmation: Are you absolutely sure? This action cannot be easily undone.')) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.delete(`${API_BASE}/departments/${deptId}/students`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showToast(res.data.message);
+            fetchStudents();
+            fetchAll(); // Refresh stats
+        } catch (e) {
+            showToast(e.response?.data?.detail || 'Failed to remove students', 'error');
+        }
+    };
+
     const handleAddStudent = async (e) => {
         e.preventDefault();
         setAddingStudent(true);
@@ -554,6 +571,28 @@ const DepartmentDetail = () => {
                                 >
                                     <Plus size={15} /> Add Student
                                 </button>
+                                {displayedStudents.length > 0 && (
+                                    <button
+                                        onClick={handleDeleteAllStudents}
+                                        title="Remove All Students"
+                                        style={{
+                                            background: '#fff', color: '#ef4444', border: '1px solid #fee2e2',
+                                            borderRadius: '8px', padding: '0.5rem 0.75rem',
+                                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                            fontWeight: 600, fontSize: '0.85rem', transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.background = '#fef2f2';
+                                            e.currentTarget.style.borderColor = '#fecaca';
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.background = '#fff';
+                                            e.currentTarget.style.borderColor = '#fee2e2';
+                                        }}
+                                    >
+                                        <Trash2 size={15} /> Remove All
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -801,8 +840,8 @@ const DepartmentDetail = () => {
                 {/* Create Classroom Modal */}
                 {
                     showClassroomModal && (
-                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                            <div style={{ background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '540px', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(10px)' }}>
+                            <div style={{ background: '#ffffff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '580px', border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                     <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Create Classroom in {dept.name}</h2>
                                     <button onClick={() => setShowClassroomModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={22} /></button>
@@ -822,7 +861,7 @@ const DepartmentDetail = () => {
                                             <label style={{ display: 'block', marginBottom: '0.3rem', fontWeight: 600, fontSize: '0.85rem' }}>{field.label}</label>
                                             <input value={classroomForm[field.key]} onChange={e => setClassroomForm(p => ({ ...p, [field.key]: e.target.value }))}
                                                 placeholder={field.placeholder}
-                                                style={{ width: '100%', padding: '0.55rem 0.7rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box' }}
+                                                style={{ width: '100%', padding: '0.7rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.9rem' }}
                                             />
                                         </div>
                                     ))}
@@ -838,8 +877,8 @@ const DepartmentDetail = () => {
 
                 {/* Add Student Modal */}
                 {showAddStudentModal && (
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                        <div style={{ background: 'var(--card-bg)', borderRadius: '16px', padding: '2rem', width: '100%', maxWidth: '480px', border: '1px solid var(--border)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(10px)' }}>
+                        <div style={{ background: '#ffffff', borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '500px', border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)', position: 'relative' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Plus size={20} style={{ color: 'var(--accent)' }} /> Add Student Manually
@@ -864,7 +903,7 @@ const DepartmentDetail = () => {
                                             placeholder={field.placeholder}
                                             value={newStudentForm[field.key]}
                                             onChange={e => setNewStudentForm(p => ({ ...p, [field.key]: e.target.value }))}
-                                            style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', fontSize: '0.9rem' }}
+                                            style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                                         />
                                     </div>
                                 ))}
@@ -873,7 +912,7 @@ const DepartmentDetail = () => {
                                     <select
                                         value={newStudentForm.classroom_id}
                                         onChange={e => setNewStudentForm(p => ({ ...p, classroom_id: e.target.value }))}
-                                        style={{ width: '100%', padding: '0.6rem 0.75rem', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)', outline: 'none', boxSizing: 'border-box', fontSize: '0.9rem' }}
+                                        style={{ width: '100%', padding: '0.75rem', background: '#f8fafc', border: '1px solid var(--border)', borderRadius: '8px', color: '#0f172a', outline: 'none', boxSizing: 'border-box', fontSize: '0.95rem' }}
                                     >
                                         <option value="">None</option>
                                         {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

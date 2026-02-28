@@ -621,3 +621,24 @@ def get_dept_stats(dept_id: int, db: Session = Depends(get_db), user: dict = Dep
             "activity_score": top.activity_score,
         },
     }
+
+
+@router.delete("/{dept_id}/students")
+def delete_all_dept_students(
+    dept_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_admin)
+):
+    """Archive all students in a department."""
+    dept = db.query(Department).filter(Department.id == dept_id).first()
+    if not dept:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    # Filter by department_id and archive them
+    updated_count = db.query(Student).filter(
+        Student.department_id == dept_id,
+        Student.status == "active"
+    ).update({"status": "archived"}, synchronize_session=False)
+
+    db.commit()
+    return {"message": f"Successfully removed all {updated_count} students from {dept.name}"}
