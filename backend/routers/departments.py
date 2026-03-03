@@ -30,10 +30,10 @@ def create_department(
 ):
     """Admin creates a new department."""
     existing = db.query(Department).filter(
-        (Department.name == dept.name) | (Department.code == dept.code.upper())
+        Department.name == dept.name
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Department with this name or code already exists")
+        raise HTTPException(status_code=400, detail="Department with this name already exists")
 
     db_dept = Department(
         name=dept.name,
@@ -140,6 +140,11 @@ def update_department(
     dept = db.query(Department).filter(Department.id == dept_id).first()
     if not dept:
         raise HTTPException(status_code=404, detail="Department not found")
+
+    # Ensure the new name doesn't conflict with another department
+    conflict = db.query(Department).filter(Department.name == dept_update.name, Department.id != dept_id).first()
+    if conflict:
+        raise HTTPException(status_code=400, detail="Another department with this name already exists")
 
     dept.name = dept_update.name
     dept.code = dept_update.code.upper()

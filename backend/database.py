@@ -40,7 +40,7 @@ class Department(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)      # e.g. "Computer Science"
-    code = Column(String, unique=True, index=True)      # e.g. "CSE"
+    code = Column(String, index=True)                   # e.g. "CSE" (Unique=False allowed now)
     description = Column(Text, nullable=True)
     hod_name = Column(String, nullable=True)
     hod_email = Column(String, nullable=True)
