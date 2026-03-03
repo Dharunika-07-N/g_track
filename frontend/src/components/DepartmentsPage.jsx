@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE } from '../config';
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 import {
   Building2, Plus, Pencil, Trash2, Users, BookOpen,
   ChevronRight, Search, X, CheckCircle, AlertCircle,
@@ -30,7 +35,7 @@ const DepartmentsPage = () => {
   const fetchDepartments = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_BASE}/departments/?include_inactive=true`);
+      const res = await axios.get(`${API_BASE}/departments/?include_inactive=true`, { headers: getAuthHeaders() });
       setDepartments(res.data);
     } catch (e) {
       setError('Failed to load departments');
@@ -64,10 +69,10 @@ const DepartmentsPage = () => {
     setSaving(true);
     try {
       if (editDept) {
-        await axios.put(`${API_BASE}/departments/${editDept.id}`, formData);
+        await axios.put(`${API_BASE}/departments/${editDept.id}`, formData, { headers: getAuthHeaders() });
         showToast('Department updated!');
       } else {
-        await axios.post(`${API_BASE}/departments/`, formData);
+        await axios.post(`${API_BASE}/departments/`, formData, { headers: getAuthHeaders() });
         showToast('Department created!');
       }
       setShowModal(false);
@@ -82,7 +87,7 @@ const DepartmentsPage = () => {
   const handleDelete = async (dept) => {
     if (!window.confirm(`Delete department "${dept.name}"? Students/classrooms will be unlinked.`)) return;
     try {
-      await axios.delete(`${API_BASE}/departments/${dept.id}`);
+      await axios.delete(`${API_BASE}/departments/${dept.id}`, { headers: getAuthHeaders() });
       showToast('Department deleted');
       fetchDepartments();
     } catch (e) {
