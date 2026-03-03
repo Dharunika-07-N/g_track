@@ -10,6 +10,11 @@ import {
     Pencil, Trash2, MoreVertical, ExternalLink
 } from 'lucide-react';
 
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
 const TABS = ['Overview', 'Classrooms', 'Students', 'Import'];
 
 const DepartmentDetail = () => {
@@ -56,8 +61,8 @@ const DepartmentDetail = () => {
         setLoading(true);
         try {
             const [deptRes, statsRes] = await Promise.all([
-                axios.get(`${API_BASE}/departments/${deptId}`),
-                axios.get(`${API_BASE}/departments/${deptId}/stats`)
+                axios.get(`${API_BASE}/departments/${deptId}`, { headers: getAuthHeaders() }),
+                axios.get(`${API_BASE}/departments/${deptId}/stats`, { headers: getAuthHeaders() })
             ]);
             setDept(deptRes.data);
             setStats(statsRes.data);
@@ -71,7 +76,7 @@ const DepartmentDetail = () => {
     const fetchClassrooms = async () => {
         setClassroomsLoading(true);
         try {
-            const res = await axios.get(`${API_BASE}/departments/${deptId}/classrooms`);
+            const res = await axios.get(`${API_BASE}/departments/${deptId}/classrooms`, { headers: getAuthHeaders() });
             setClassrooms(res.data);
         } catch (e) {
             showToast('Failed to load classrooms', 'error');
@@ -89,7 +94,7 @@ const DepartmentDetail = () => {
                 params += `&start_date=${customStart}`;
                 if (customEnd) params += `&end_date=${customEnd}`;
             }
-            const res = await axios.get(`${API_BASE}/departments/${deptId}/students${params}`);
+            const res = await axios.get(`${API_BASE}/departments/${deptId}/students${params}`, { headers: getAuthHeaders() });
             setStudents(res.data);
         } catch (e) {
             showToast('Failed to load students', 'error');
@@ -132,7 +137,7 @@ const DepartmentDetail = () => {
     const handleCreateClassroom = async () => {
         if (!classroomForm.name.trim()) { showToast('Classroom name required', 'error'); return; }
         try {
-            await axios.post(`${API_BASE}/departments/${deptId}/classrooms`, classroomForm);
+            await axios.post(`${API_BASE}/departments/${deptId}/classrooms`, classroomForm, { headers: getAuthHeaders() });
             showToast('Classroom created!');
             setShowClassroomModal(false);
             setClassroomForm({ name: '', description: '', semester: '', year: '', batch: '', subject_code: '', faculty_name: '', faculty_email: '' });
@@ -145,7 +150,7 @@ const DepartmentDetail = () => {
     const handleSync = async () => {
         setSyncing(true);
         try {
-            const res = await axios.post(`${API_BASE}/departments/${deptId}/sync`);
+            const res = await axios.post(`${API_BASE}/departments/${deptId}/sync`, {}, { headers: getAuthHeaders() });
             showToast(res.data.message);
         } catch (e) {
             showToast('Sync failed', 'error');
@@ -221,7 +226,7 @@ const DepartmentDetail = () => {
                 ? `${API_BASE}/departments/${deptId}/upload?classroom_id=${importClassroomId}`
                 : `${API_BASE}/departments/${deptId}/upload`;
             const res = await axios.post(url, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
+                headers: { ...getAuthHeaders(), 'Content-Type': 'multipart/form-data' }
             });
             setImportResult(res.data);
             showToast(res.data.message);
