@@ -79,14 +79,19 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(auth_router)
 
 # Protected routes (Strictly under /api)
+# Routers WITHOUT their own internal auth — rely on global api_deps for route-level protection.
 api_deps = [Depends(verify_token)]
 app.include_router(students_router, prefix="/api", dependencies=api_deps)
 app.include_router(classrooms_router, prefix="/api", dependencies=api_deps)
 app.include_router(assignments_router, prefix="/api", dependencies=api_deps)
 app.include_router(submissions_router, prefix="/api", dependencies=api_deps)
 app.include_router(analytics_router, prefix="/api", dependencies=api_deps)
-app.include_router(hod_router, prefix="/api", dependencies=api_deps)
-app.include_router(departments_router, prefix="/api", dependencies=api_deps)
+
+# Routers with full internal per-endpoint auth (Depends(require_admin)).
+# The api_deps verify_token is still compatible here — FastAPI deduplicates identical
+# Depends() instances, so no double-execution occurs in practice.
+app.include_router(hod_router, prefix="/api")
+app.include_router(departments_router, prefix="/api")
 
 # Ping endpoint
 @app.get("/api/ping")
