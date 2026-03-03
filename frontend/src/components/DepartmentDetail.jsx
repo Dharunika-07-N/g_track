@@ -190,6 +190,19 @@ const DepartmentDetail = () => {
         }
     };
 
+    const handleDeleteDept = async () => {
+        if (!window.confirm(`Are you sure you want to delete the department "${dept.name}"?\n\nAll students and classrooms will be unlinked from this department, but they will NOT be deleted.`)) return;
+        if (!window.confirm(`FINAL CONFIRMATION: Are you absolutely sure? This will remove the department record permanently.`)) return;
+
+        try {
+            await axios.delete(`${API_BASE}/departments/${deptId}`, { headers: getAuthHeaders() });
+            showToast('Department deleted successfully');
+            navigate('/departments');
+        } catch (e) {
+            showToast(e.response?.data?.detail || 'Failed to delete department', 'error');
+        }
+    };
+
     const handleAddStudent = async (e) => {
         e.preventDefault();
         setAddingStudent(true);
@@ -447,6 +460,33 @@ const DepartmentDetail = () => {
                                     <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{item.value}</span>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Danger Zone */}
+                        <div style={{ gridColumn: '1 / -1', background: '#fff', border: '1px solid #fee2e2', borderRadius: '12px', padding: '1.5rem', marginTop: '1rem' }}>
+                            <h3 style={{ margin: '0 0 0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444' }}>
+                                <AlertCircle size={18} /> Danger Zone
+                            </h3>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <p style={{ margin: 0, fontWeight: 600, fontSize: '0.95rem' }}>Delete Department</p>
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                                        Permanently delete this department. Students and classrooms will be unlinked but not deleted.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleDeleteDept}
+                                    style={{
+                                        background: '#fff', color: '#ef4444', border: '1px solid #ef4444',
+                                        borderRadius: '8px', padding: '0.6rem 1.25rem', fontWeight: 700,
+                                        cursor: 'pointer', transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#fff'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#ef4444'; }}
+                                >
+                                    Delete Department
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
