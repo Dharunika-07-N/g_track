@@ -33,6 +33,24 @@ async def lifespan(app: FastAPI):
     # Startup
     print("Application starting up...")
     init_db()
+
+    # PostgreSQL Schema Migrations (for Render/Production)
+    from database import engine, DATABASE_URL
+    if "postgresql" in DATABASE_URL:
+        print("Checking for PostgreSQL schema updates...")
+        try:
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                # Remove unique constraint from departments(code)
+                # Standard SQLAlchemy name is 'tablename_columnname_key'
+                conn.execute(text("ALTER TABLE departments DROP CONSTRAINT IF EXISTS departments_code_key;"))
+                # Ensure index is non-unique
+                conn.execute(text("DROP INDEX IF EXISTS ix_departments_code;"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_departments_code ON departments (code);"))
+                conn.commit()
+                print("PostgreSQL schema updates applied successfully.")
+        except Exception as e:
+            print(f"PostgreSQL migration warning: {e}")
     
     # Create a default instructor for dev if none exists
     db = SessionLocal()
@@ -54,7 +72,7 @@ async def lifespan(app: FastAPI):
     scheduler = start_scheduler()
     
     scheduler.add_job(sync_scheduler_wrapper, 'interval', minutes=60)
-    asyncio.create_task(scheduled_update_all())
+    # Removing blocking scheduled_update_all() from startup to let Uvicorn handle requests.
     yield
     print("Application shutting down...")
     scheduler.shutdown()

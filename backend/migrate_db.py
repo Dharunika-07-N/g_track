@@ -50,6 +50,24 @@ try:
             cur.execute(f"ALTER TABLE students ADD COLUMN {col_name} {col_type};")
             
     conn.commit()
+
+    # Departments Table - Remove unique constraint from code column
+    print("Checking departments table uniqueness...")
+    cur.execute("""
+        SELECT count(*) 
+        FROM information_schema.table_constraints 
+        WHERE table_name='departments' AND constraint_type='UNIQUE' AND constraint_name='departments_code_key';
+    """)
+    if cur.fetchone()[0] > 0:
+        print("Dropping unique constraint from departments(code)...")
+        cur.execute("ALTER TABLE departments DROP CONSTRAINT departments_code_key;")
+        conn.commit()
+    
+    # Also handle the index if SQLAlchemy created a separate one
+    cur.execute("DROP INDEX IF EXISTS ix_departments_code;")
+    cur.execute("CREATE INDEX IF NOT EXISTS ix_departments_code ON departments(code);")
+    conn.commit()
+
     print("Schema update completed successfully.")
     cur.close()
     conn.close()
