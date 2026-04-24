@@ -38,79 +38,88 @@ async def lifespan(app: FastAPI):
     from database import engine, DATABASE_URL
     if "postgresql" in DATABASE_URL:
         print("Checking for PostgreSQL schema updates...")
-        try:
-            from sqlalchemy import text
-            with engine.connect() as conn:
-                # 1. Handle Department Table Columns
-                res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'departments';"))
-                existing_cols = [row[0] for row in res.fetchall()]
-                
-                dept_cols = [
-                    ("description", "TEXT"),
-                    ("hod_name", "VARCHAR"),
-                    ("hod_email", "VARCHAR"),
-                    ("is_active", "BOOLEAN DEFAULT TRUE"),
-                    ("created_by", "INTEGER"),
-                    ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-                ]
-                for col_name, col_type in dept_cols:
-                    if col_name not in existing_cols:
-                        print(f"Adding column {col_name} to departments table...")
-                        conn.execute(text(f"ALTER TABLE departments ADD COLUMN {col_name} {col_type};"))
-                
-                # 2. Handle Students Table Columns
-                res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'students';"))
-                existing_cols = [row[0] for row in res.fetchall()]
-                student_cols = [
-                    ("password_hash", "VARCHAR"),
-                    ("department", "VARCHAR"),
-                    ("department_id", "INTEGER"),
-                    ("leetcode_solved", "INTEGER DEFAULT 0"),
-                    ("leetcode_rating", "INTEGER DEFAULT 0"),
-                    ("hackerrank_score", "INTEGER DEFAULT 0"),
-                    ("github_username", "VARCHAR") # Ensure it exists if it was missed
-                ]
-                for col_name, col_type in student_cols:
-                    if col_name not in existing_cols:
-                        print(f"Adding column {col_name} to students table...")
-                        conn.execute(text(f"ALTER TABLE students ADD COLUMN {col_name} {col_type};"))
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # 1. Departments
+            dept_cols = [
+                ("description", "TEXT"),
+                ("hod_name", "VARCHAR"),
+                ("hod_email", "VARCHAR"),
+                ("is_active", "BOOLEAN DEFAULT TRUE"),
+                ("created_by", "INTEGER"),
+                ("created_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            ]
+            for col_name, col_type in dept_cols:
+                try:
+                    conn.execute(text(f"ALTER TABLE departments ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                    conn.commit()
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Warning adding {col_name} to departments: {e}")
+            
+            # 2. Students
+            student_cols = [
+                ("password_hash", "VARCHAR"),
+                ("department", "VARCHAR"),
+                ("department_id", "INTEGER"),
+                ("leetcode_solved", "INTEGER DEFAULT 0"),
+                ("leetcode_rating", "INTEGER DEFAULT 0"),
+                ("hackerrank_score", "INTEGER DEFAULT 0"),
+                ("github_username", "VARCHAR")
+            ]
+            for col_name, col_type in student_cols:
+                try:
+                    conn.execute(text(f"ALTER TABLE students ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                    conn.commit()
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Warning adding {col_name} to students: {e}")
 
-                # 3. Handle Users Table Columns
-                res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'users';"))
-                existing_cols = [row[0] for row in res.fetchall()]
-                user_cols = [
-                    ("department", "VARCHAR"),
-                    ("subject_name", "VARCHAR"),
-                    ("student_id", "VARCHAR"),
-                    ("phone", "VARCHAR"),
-                    ("leetcode_username", "VARCHAR"),
-                    ("hackerrank_username", "VARCHAR"),
-                    ("password_reset_required", "BOOLEAN DEFAULT FALSE"),
-                    ("import_batch_id", "VARCHAR")
-                ]
-                for col_name, col_type in user_cols:
-                    if col_name not in existing_cols:
-                        print(f"Adding column {col_name} to users table...")
-                        conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"))
+            # 3. Users
+            user_cols = [
+                ("password_hash", "VARCHAR"),
+                ("department", "VARCHAR"),
+                ("subject_name", "VARCHAR"),
+                ("student_id", "VARCHAR"),
+                ("phone", "VARCHAR"),
+                ("leetcode_username", "VARCHAR"),
+                ("hackerrank_username", "VARCHAR"),
+                ("password_reset_required", "BOOLEAN DEFAULT FALSE"),
+                ("import_batch_id", "VARCHAR")
+            ]
+            for col_name, col_type in user_cols:
+                try:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_type};"))
+                    conn.commit()
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Warning adding {col_name} to users: {e}")
 
-                # 4. Handle Classrooms Table Columns
-                res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'classrooms';"))
-                existing_cols = [row[0] for row in res.fetchall()]
-                if "department_id" not in existing_cols:
-                    print("Adding column department_id to classrooms table...")
-                    conn.execute(text("ALTER TABLE classrooms ADD COLUMN department_id INTEGER;"))
+            # 4. Classrooms
+            try:
+                conn.execute(text("ALTER TABLE classrooms ADD COLUMN IF NOT EXISTS department_id INTEGER;"))
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print(f"Warning adding department_id to classrooms: {e}")
 
-                # 5. Handle Department Code Unique Constraint
+            # 5. Handle constraints safely
+            try:
                 conn.execute(text("ALTER TABLE departments DROP CONSTRAINT IF EXISTS departments_code_key;"))
-                
-                # 6. Ensure index is non-unique
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                print(f"Warning dropping constraint: {e}")
+            
+            try:
                 conn.execute(text("DROP INDEX IF EXISTS ix_departments_code;"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_departments_code ON departments (code);"))
-                
                 conn.commit()
-                print("PostgreSQL schema updates applied successfully.")
-        except Exception as e:
-            print(f"PostgreSQL migration warning: {e}")
+            except Exception as e:
+                conn.rollback()
+                print(f"Warning updating index: {e}")
+            
+            print("PostgreSQL schema updates applied successfully.")
     
     # Create a default instructor for dev if none exists
     db = SessionLocal()
