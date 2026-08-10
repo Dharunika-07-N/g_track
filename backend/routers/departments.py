@@ -403,8 +403,8 @@ async def upload_dept_students(
     user: dict = Depends(require_admin)
 ):
     """Upload an Excel/CSV of students directly into a department (and optionally a classroom)."""
-    with open("import_debug.log", "a", encoding="utf-8") as log_file:
-        log_file.write(f"\n--- NEW IMPORT AT {datetime.utcnow()} ---\n")
+    if True:
+        print(f"\n--- NEW IMPORT AT {datetime.utcnow()} ---\n")
         dept = db.query(Department).filter(Department.id == dept_id).first()
         if not dept:
             raise HTTPException(status_code=404, detail="Department not found")
@@ -436,7 +436,7 @@ async def upload_dept_students(
                 clean_h = str(original_col).lower().strip().replace(' ', '').replace('_', '').replace('-', '').replace('.', '')
                 header_map[clean_h] = original_col
             
-            log_file.write(f"Normalized Headers: {list(header_map.keys())}\n")
+            print(f"Normalized Headers: {list(header_map.keys())}\n")
 
             # 1. Match GitHub ID
             for h in header_map:
@@ -470,7 +470,7 @@ async def upload_dept_students(
                         cols['github'] = col
                         break
 
-            log_file.write(f"Mapped Columns: {cols}\n")
+            print(f"Mapped Columns: {cols}\n")
 
             for index, row in df.iterrows():
                 try:
@@ -545,11 +545,11 @@ async def upload_dept_students(
                         added_count += 1
 
                 except Exception as row_err:
-                    log_file.write(f"Row {index} error: {str(row_err)}\n")
+                    print(f"Row {index} error: {str(row_err)}\n")
                     errors.append(f"Row {index}: {str(row_err)}")
                     continue
 
-            log_file.write(f"Import Summary: Added {added_count}, Updated {updated_count}, Skipped {skipped_count}\n")
+            print(f"Import Summary: Added {added_count}, Updated {updated_count}, Skipped {skipped_count}\n")
             return {
                 "message": f"Successfully processed students.",
                 "added": added_count,
@@ -559,7 +559,7 @@ async def upload_dept_students(
             }
 
         except Exception as e:
-            log_file.write(f"CRITICAL IMPORT ERROR: {str(e)}\n")
+            print(f"CRITICAL IMPORT ERROR: {str(e)}\n")
             raise HTTPException(status_code=500, detail=str(e))
 
 
