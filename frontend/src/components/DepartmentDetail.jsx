@@ -245,6 +245,9 @@ const DepartmentDetail = () => {
             showToast(res.data.message);
             setImportFile(null);
             if (fileRef.current) fileRef.current.value = '';
+            fetchAll();
+            fetchStudents();
+            fetchClassrooms();
         } catch (e) {
             showToast(e.response?.data?.detail || 'Import failed', 'error');
         } finally {

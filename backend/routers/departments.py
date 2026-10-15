@@ -334,7 +334,7 @@ def get_dept_students(
             }
             for s in students
         ]
-        results.sort(key=lambda x: x["activity_score"], reverse=True)
+        results.sort(key=lambda x: x["activity_score"] or 0, reverse=True)
         return results
 
     # Get aggregated logs
@@ -389,7 +389,7 @@ def get_dept_students(
             "last_updated": s.last_updated,
         })
 
-    results.sort(key=lambda x: x["activity_score"], reverse=True)
+    results.sort(key=lambda x: x["activity_score"] or 0, reverse=True)
     return results
 
 
