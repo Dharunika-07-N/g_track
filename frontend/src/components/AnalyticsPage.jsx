@@ -323,30 +323,6 @@ const AnalyticsPage = () => {
                 )}
             </div>
 
-            {/* Existing Analytics Below (Optional, or removed/hidden) */}
-            <div className="card glass">
-                <h3 style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <BarChart3 size={20} />
-                    Global Activity Trends
-                </h3>
-                <div style={{ height: '200px', display: 'flex', alignItems: 'flex-end', gap: '8px', padding: '0 1rem' }}>
-                    {summary?.trends.slice(0, 30).reverse().map((t, i) => (
-                        <div
-                            key={i}
-                            style={{
-                                flex: 1,
-                                height: `${Math.min(100, (t.commits / (summary.metrics.commits / 30 || 1)) * 50)}%`,
-                                background: 'var(--primary-glow)',
-                                borderRadius: '4px 4px 0 0',
-                                border: '1px solid var(--primary)',
-                                position: 'relative'
-                            }}
-                            title={`${t.date_str}: ${t.commits} commits`}
-                        >
-                        </div>
-                    ))}
-                </div>
-            </div>
 
 
             {/* ARCHIVE MODAL */}

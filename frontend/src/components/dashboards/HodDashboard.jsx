@@ -11,7 +11,11 @@ import {
     CheckCircle,
     AlertCircle,
     Trophy,
-    TrendingUp
+    TrendingUp,
+    X,
+    Send,
+    Eye,
+    FileText
 } from 'lucide-react';
 
 import { API_BASE } from '../../config';
@@ -24,6 +28,17 @@ export default function HodDashboard() {
     const [uploading, setUploading] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [importStatus, setImportStatus] = useState(null);
+
+    // Compose Mail Modal
+    const [showMailModal, setShowMailModal] = useState(false);
+    const [mailForm, setMailForm] = useState({ to: '', subject: '', body: '' });
+    const [mailSending, setMailSending] = useState(false);
+    const [mailSent, setMailSent] = useState(false);
+
+    // Incomplete Export Preview Modal
+    const [showIncompleteModal, setShowIncompleteModal] = useState(false);
+    const [incompleteStudents, setIncompleteStudents] = useState([]);
+    const [incompleteLoading, setIncompleteLoading] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -38,7 +53,7 @@ export default function HodDashboard() {
                 axios.get(`${API_BASE}/hod/users`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 }),
-                axios.get(`${API_BASE}/students/?period=monthly&limit=5`, { // Use students API for leaderboard
+                axios.get(`${API_BASE}/analytics/dashboard/leaderboard?period=monthly&limit=5`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 })
             ]);
@@ -55,10 +70,8 @@ export default function HodDashboard() {
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         const formData = new FormData();
         formData.append("file", file);
-
         setUploading(true);
         setImportStatus(null);
         try {
@@ -68,11 +81,7 @@ export default function HodDashboard() {
                     Authorization: `Bearer ${localStorage.getItem('token')}`
                 }
             });
-            setImportStatus({
-                success: true,
-                message: resp.data.message,
-                errors: resp.data.errors
-            });
+            setImportStatus({ success: true, message: resp.data.message, errors: resp.data.errors });
             fetchData();
         } catch (err) {
             setImportStatus({ success: false, message: err.response?.data?.detail || "Import failed" });
@@ -113,6 +122,84 @@ export default function HodDashboard() {
         );
     };
 
+    // ─── Email Faculty ────────────────────────────────────────────────
+    const openMailModal = () => {
+        // Pre-populate To with faculty emails from users list
+        const facultyEmails = users
+            .filter(u => u.role === 'faculty' && u.email)
+            .map(u => u.email)
+            .join(', ');
+        setMailForm({
+            to: facultyEmails || '',
+            subject: '',
+            body: ''
+        });
+        setMailSent(false);
+        setShowMailModal(true);
+    };
+
+    const handleSendMail = () => {
+        if (!mailForm.to || !mailForm.subject || !mailForm.body) {
+            alert('Please fill in all fields.');
+            return;
+        }
+        setMailSending(true);
+        // Open system mailto link (real email client)
+        const mailto = `mailto:${encodeURIComponent(mailForm.to)}?subject=${encodeURIComponent(mailForm.subject)}&body=${encodeURIComponent(mailForm.body)}`;
+        window.open(mailto, '_blank');
+        setTimeout(() => {
+            setMailSending(false);
+            setMailSent(true);
+        }, 800);
+    };
+
+    // ─── Export Incomplete Preview ─────────────────────────────────────
+    const handleIncompletePreview = async () => {
+        setShowIncompleteModal(true);
+        setIncompleteLoading(true);
+        try {
+            const response = await axios.get(
+                `${API_BASE}/analytics/export/csv?status=incomplete&format=json`,
+                { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+            );
+            setIncompleteStudents(Array.isArray(response.data) ? response.data : []);
+        } catch (error) {
+            if (error.response?.status === 404) {
+                setIncompleteStudents([]);
+            } else {
+                console.error('Failed to load incomplete data', error);
+                setIncompleteStudents([]);
+            }
+        } finally {
+            setIncompleteLoading(false);
+        }
+    };
+
+    const handleExportIncomplete = async () => {
+        try {
+            const response = await axios.get(
+                `${API_BASE}/analytics/export/csv?status=incomplete`,
+                {
+                    responseType: 'blob',
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                }
+            );
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', 'incomplete_students_report.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            if (error.response?.status === 404) {
+                alert("No assignments found — please create assignments first.");
+            } else {
+                alert("Export failed");
+            }
+        }
+    };
+
     if (loading) return <div className="main-content">Loading...</div>;
 
     return (
@@ -120,7 +207,7 @@ export default function HodDashboard() {
             <header className="header">
                 <div>
                     <h1 style={{ fontSize: '2.5rem', fontWeight: 800 }}>HOD Dashboard</h1>
-                    <p className="text-muted">Department Overview & User Management</p>
+                    <p className="text-muted">Department Overview &amp; User Management</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <button className="btn btn-primary" onClick={() => window.open(`${API_BASE}/templates/student_import.xlsx`)}>
@@ -152,6 +239,7 @@ export default function HodDashboard() {
                 </div>
             )}
 
+            {/* Stats */}
             <div className="grid grid-4" style={{ marginBottom: '3rem' }}>
                 <div className="card glass stat-card">
                     <Users size={24} color="var(--primary)" />
@@ -160,7 +248,7 @@ export default function HodDashboard() {
                 </div>
                 <div className="card glass stat-card">
                     <BookOpen size={24} color="var(--secondary)" />
-                    <span className="stat-value">{stats.total_classrooms}</span>
+                    <span className="stat-value">{stats.total_classrooms || 0}</span>
                     <span className="stat-label">Total Classrooms</span>
                 </div>
                 <div className="card glass stat-card">
@@ -175,6 +263,7 @@ export default function HodDashboard() {
                 </div>
             </div>
 
+            {/* Top Performers + Quick Actions */}
             <div className="grid grid-2" style={{ marginBottom: '3rem' }}>
                 <div className="card glass">
                     <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -190,41 +279,38 @@ export default function HodDashboard() {
                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{student.github_username}</div>
                                 </div>
                                 <div style={{ textAlign: 'right' }}>
-                                    <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{student.activity_score} pts</div>
+                                    <div style={{ fontWeight: 800, color: 'var(--primary)' }}>{student.score ?? student.activity_score ?? 0} pts</div>
                                 </div>
                             </div>
                         ))}
-                        {(!Array.isArray(leaderboard) || leaderboard.length === 0) && <div className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active students found</div>}
+                        {(!Array.isArray(leaderboard) || leaderboard.length === 0) && (
+                            <div className="text-muted" style={{ textAlign: 'center', padding: '2rem' }}>No active students found</div>
+                        )}
                     </div>
                 </div>
+
                 <div className="card glass">
                     <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <TrendingUp size={20} color="var(--secondary)" />
                         Quick Actions
                     </h3>
                     <div className="grid grid-2" style={{ gap: '1rem' }}>
-                        <button className="btn btn-secondary glass" style={{ height: '100px', flexDirection: 'column' }}>
+                        {/* Email Faculty — opens compose mail modal */}
+                        <button
+                            className="btn btn-secondary glass"
+                            style={{ height: '100px', flexDirection: 'column' }}
+                            onClick={openMailModal}
+                        >
                             <Mail size={24} />
                             <span style={{ marginTop: '0.5rem' }}>Email Faculty</span>
                         </button>
-                        <button className="btn btn-secondary glass" style={{ height: '100px', flexDirection: 'column' }} onClick={async () => {
-                            try {
-                                const response = await axios.get(`${API_BASE}/analytics/export/csv?status=incomplete`, { responseType: 'blob' });
-                                const url = window.URL.createObjectURL(new Blob([response.data]));
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.setAttribute('download', 'incomplete_report.xlsx');
-                                document.body.appendChild(link);
-                                link.click();
-                                link.remove();
-                            } catch (error) {
-                                if (error.response && error.response.status === 404) {
-                                    alert("No assignments is assigned");
-                                } else {
-                                    alert("Export failed");
-                                }
-                            }
-                        }}>
+
+                        {/* Export Incomplete — opens preview modal */}
+                        <button
+                            className="btn btn-secondary glass"
+                            style={{ height: '100px', flexDirection: 'column' }}
+                            onClick={handleIncompletePreview}
+                        >
                             <Download size={24} />
                             <span>Export Incomplete</span>
                         </button>
@@ -232,6 +318,7 @@ export default function HodDashboard() {
                 </div>
             </div>
 
+            {/* User Management */}
             <div className="card glass">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>User Management</h2>
@@ -298,6 +385,250 @@ export default function HodDashboard() {
                     </table>
                 </div>
             </div>
+
+            {/* ─── Compose Mail Modal ──────────────────────────────────── */}
+            {showMailModal && (
+                <div className="modal-overlay" style={{ zIndex: 1000 }}>
+                    <div className="modal glass" style={{ maxWidth: '560px', width: '90%' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))', padding: '0.5rem', borderRadius: '10px', display: 'flex' }}>
+                                    <Mail size={20} color="white" />
+                                </div>
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Compose Mail</h2>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>Send message to faculty</p>
+                                </div>
+                            </div>
+                            <button
+                                className="btn-icon"
+                                onClick={() => { setShowMailModal(false); setMailSent(false); }}
+                                style={{ background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '0.4rem', border: 'none', cursor: 'pointer', display: 'flex' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {mailSent ? (
+                            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                                <div style={{ background: 'rgba(16,185,129,0.1)', width: '70px', height: '70px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+                                    <CheckCircle size={40} color="#10b981" />
+                                </div>
+                                <h3 style={{ color: '#10b981', marginBottom: '0.5rem' }}>Mail Client Opened!</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                                    Your default mail client has been opened with the composed message.
+                                </p>
+                                <button className="btn btn-primary" onClick={() => { setShowMailModal(false); setMailSent(false); }}>
+                                    Close
+                                </button>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.4rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</label>
+                                    <input
+                                        className="input"
+                                        type="email"
+                                        multiple
+                                        placeholder="faculty@college.edu, another@college.edu"
+                                        value={mailForm.to}
+                                        onChange={e => setMailForm(p => ({ ...p, to: e.target.value }))}
+                                        style={{ width: '100%' }}
+                                    />
+                                    {users.filter(u => u.role === 'faculty' && u.email).length > 0 && (
+                                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Quick add:</span>
+                                            {users.filter(u => u.role === 'faculty' && u.email).map(u => (
+                                                <button
+                                                    key={u.id}
+                                                    onClick={() => {
+                                                        const emails = mailForm.to ? mailForm.to.split(',').map(e => e.trim()).filter(Boolean) : [];
+                                                        if (!emails.includes(u.email)) {
+                                                            setMailForm(p => ({ ...p, to: [...emails, u.email].join(', ') }));
+                                                        }
+                                                    }}
+                                                    style={{ fontSize: '0.72rem', background: 'var(--primary-glow)', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '20px', padding: '0.1rem 0.5rem', cursor: 'pointer' }}
+                                                >
+                                                    + {u.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.4rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subject</label>
+                                    <input
+                                        className="input"
+                                        type="text"
+                                        placeholder="e.g. Reminder: Submit grades by Friday"
+                                        value={mailForm.subject}
+                                        onChange={e => setMailForm(p => ({ ...p, subject: e.target.value }))}
+                                        style={{ width: '100%' }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label style={{ display: 'block', fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.4rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Message</label>
+                                    <textarea
+                                        className="input"
+                                        rows={6}
+                                        placeholder="Type your message to faculty here..."
+                                        value={mailForm.body}
+                                        onChange={e => setMailForm(p => ({ ...p, body: e.target.value }))}
+                                        style={{ width: '100%', resize: 'vertical' }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
+                                    <button className="btn btn-secondary glass" onClick={() => setShowMailModal(false)}>
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className="btn btn-primary"
+                                        onClick={handleSendMail}
+                                        disabled={mailSending}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                    >
+                                        <Send size={16} />
+                                        {mailSending ? 'Opening...' : 'Send Mail'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* ─── Incomplete Students Preview Modal ──────────────────── */}
+            {showIncompleteModal && (
+                <div className="modal-overlay" style={{ zIndex: 1000 }}>
+                    <div className="modal glass" style={{ maxWidth: '900px', width: '95%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
+                        {/* Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ background: 'linear-gradient(135deg, #ef4444, #f97316)', padding: '0.5rem', borderRadius: '10px', display: 'flex' }}>
+                                    <FileText size={20} color="white" />
+                                </div>
+                                <div>
+                                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>Incomplete Submissions</h2>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                                        Students who haven't completed assignments
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                className="btn-icon"
+                                onClick={() => setShowIncompleteModal(false)}
+                                style={{ background: 'rgba(0,0,0,0.05)', borderRadius: '50%', padding: '0.4rem', border: 'none', cursor: 'pointer', display: 'flex' }}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        {/* Summary bar */}
+                        {!incompleteLoading && incompleteStudents.length > 0 && (
+                            <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '12px', padding: '1rem', flexShrink: 0 }}>
+                                <div style={{ textAlign: 'center', flex: 1 }}>
+                                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#ef4444' }}>{incompleteStudents.length}</div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Incomplete</div>
+                                </div>
+                                <div style={{ width: '1px', background: 'var(--border)' }} />
+                                <div style={{ textAlign: 'center', flex: 1 }}>
+                                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)' }}>
+                                        {Math.round(incompleteStudents.reduce((acc, s) => acc + (s['Commits'] || 0), 0) / incompleteStudents.length)}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Commits</div>
+                                </div>
+                                <div style={{ width: '1px', background: 'var(--border)' }} />
+                                <div style={{ textAlign: 'center', flex: 1 }}>
+                                    <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f97316' }}>
+                                        {Math.round(incompleteStudents.reduce((acc, s) => acc + (s['Activity Score'] || 0), 0) / incompleteStudents.length)}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Avg Score</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Table */}
+                        <div style={{ overflowY: 'auto', flex: 1, borderRadius: '12px' }}>
+                            {incompleteLoading ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                                    <div style={{ fontSize: '1rem' }}>Loading incomplete student data...</div>
+                                </div>
+                            ) : incompleteStudents.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                                    <FileText size={48} style={{ margin: '0 auto 1rem', opacity: 0.3 }} />
+                                    <p>No incomplete submissions found, or no assignments exist yet.</p>
+                                </div>
+                            ) : (
+                                <div className="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Rank</th>
+                                                <th>Student</th>
+                                                <th>Roll No</th>
+                                                <th>Email</th>
+                                                <th>GitHub</th>
+                                                <th>Commits</th>
+                                                <th>Activity Score</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {incompleteStudents.map((s, i) => (
+                                                <tr key={i}>
+                                                    <td style={{ fontWeight: 700, color: 'var(--primary)' }}>#{s.Rank}</td>
+                                                    <td style={{ fontWeight: 600 }}>{s.Name}</td>
+                                                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{s['Roll No'] || '—'}</td>
+                                                    <td style={{ fontSize: '0.85rem' }}>{s.Email}</td>
+                                                    <td>
+                                                        {s.GitHub ? (
+                                                            <a href={`https://github.com/${s.GitHub}`} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontSize: '0.85rem' }}>
+                                                                @{s.GitHub}
+                                                            </a>
+                                                        ) : '—'}
+                                                    </td>
+                                                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{s.Commits}</td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <div style={{ width: '60px', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                                <div style={{ width: `${Math.min(s['Activity Score'] || 0, 100)}%`, height: '100%', background: 'var(--primary)' }} />
+                                                            </div>
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{s['Activity Score']}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <span style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid #ef4444', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                                            Incomplete
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer actions */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+                            <button className="btn btn-secondary glass" onClick={() => setShowIncompleteModal(false)}>
+                                Close
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleExportIncomplete}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                            >
+                                <Download size={16} /> Download Excel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

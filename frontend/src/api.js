@@ -23,7 +23,7 @@ async function handleResponse(res, errorMessage) {
 }
 
 export async function fetchStats(period = "monthly") {
-  const res = await fetch(`${API_URL}/dashboard/stats?period=${period}`, {
+  const res = await fetch(`${API_URL}/analytics/dashboard/stats?period=${period}`, {
     headers: getHeaders()
   });
   return handleResponse(res, "Failed to fetch stats");

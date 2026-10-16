@@ -23,6 +23,7 @@ def export_full_history(
     period: str = "all",
     start_date: str = None,
     end_date: str = None,
+    format: str = "excel",
     db: Session = Depends(get_db)
 ):
     try:
@@ -115,6 +116,9 @@ def export_full_history(
             ranked_item = {"Rank": i + 1}
             ranked_item.update(item)
             ranked_export_data.append(ranked_item)
+            
+        if format == "json":
+            return ranked_export_data
             
         df = pd.DataFrame(ranked_export_data)
         

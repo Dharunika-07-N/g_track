@@ -106,8 +106,8 @@ async def upload_students(background_tasks: BackgroundTasks, file: UploadFile = 
                 db.refresh(new_student)
                 
                 # Trigger background sync for this student
-                from routers.students import update_student_data
-                background_tasks.add_task(update_student_data, new_student.id)
+                from routers.students import update_student_data_background
+                background_tasks.add_task(update_student_data_background, new_student.id)
                 
                 success_count += 1
             except Exception as e:
@@ -153,16 +153,26 @@ def bulk_delete_users(req: BulkActionRequest, db: Session = Depends(get_db)):
 
 @router.get("/stats", dependencies=[Depends(require_admin)])
 def get_hod_stats(db: Session = Depends(get_db)):
-    from database import Classroom
-    total_students = db.query(User).filter(User.role == "student").count()
+    from database import Classroom, Student, Assignment, Submission
+    total_students = db.query(Student).count()
+    if total_students == 0:
+        total_students = db.query(User).filter(User.role == "student").count()
     total_faculty = db.query(User).filter(User.role == "faculty").count()
     total_classrooms = db.query(Classroom).count()
     
+    total_subs = db.query(Submission).count()
+    completed_subs = db.query(Submission).filter(Submission.status.in_(["submitted", "graded"])).count()
+    avg_completion = round((completed_subs / total_subs * 100)) if total_subs > 0 else 0
+    
+    pending_reminders = db.query(Submission).filter(Submission.status == "pending").count()
+    if pending_reminders == 0 and total_students > 0 and db.query(Assignment).count() > 0:
+        pending_reminders = max(0, total_students - completed_subs)
+
     return {
         "total_students": total_students,
         "total_faculty": total_faculty,
         "total_classrooms": total_classrooms,
         "department": "All",
-        "avg_completion": 0,
-        "pending_reminders": 0
+        "avg_completion": avg_completion,
+        "pending_reminders": pending_reminders
     }

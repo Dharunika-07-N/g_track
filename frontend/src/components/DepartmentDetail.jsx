@@ -849,38 +849,6 @@ const DepartmentDetail = () => {
                                     </p>
                                 </div>
                             )}
-
-                            {/* Expected Format */}
-                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', marginTop: '1.5rem' }}>
-                                <h4 style={{ margin: '0 0 0.75rem' }}>Expected File Format</h4>
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                                        <thead>
-                                            <tr style={{ background: 'var(--bg)' }}>
-                                                {['Name', 'GitHub', 'ID', 'Email'].map(h => (
-                                                    <th key={h} style={{ padding: '0.5rem 0.75rem', textAlign: 'left', border: '1px solid var(--border)', color: 'var(--accent)' }}>{h}</th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {[
-                                                ['John Doe', 'johndoe', '21CS001', 'john@college.edu'],
-                                                ['Jane Smith', 'janesmith', '21CS002', 'jane@college.edu'],
-                                                ['Alex Kumar', 'https://github.com/alexkumar', '21CS003', 'alex@college.edu'],
-                                            ].map((row, i) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    {row.map((cell, j) => (
-                                                        <td key={j} style={{ padding: '0.45rem 0.75rem', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.83rem' }}>{cell}</td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                    GitHub column accepts plain usernames or full GitHub profile URLs. Student ID is used as the default password.
-                                </p>
-                            </div>
                         </div>
                     )
                 }

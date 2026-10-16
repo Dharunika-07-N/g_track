@@ -27,6 +27,7 @@ from routers.submissions import router as submissions_router
 from routers.analytics import router as analytics_router
 from routers.hod import router as hod_router
 from routers.departments import router as departments_router
+from routers.student_portal import router as student_portal_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -179,6 +180,7 @@ app.include_router(analytics_router, prefix="/api", dependencies=api_deps)
 # Depends() instances, so no double-execution occurs in practice.
 app.include_router(hod_router, prefix="/api")
 app.include_router(departments_router, prefix="/api")
+app.include_router(student_portal_router, prefix="/api")
 
 # Ping endpoint
 @app.get("/api/ping")

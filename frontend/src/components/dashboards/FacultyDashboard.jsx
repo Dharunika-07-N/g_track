@@ -23,7 +23,7 @@ export default function FacultyDashboard() {
         const fetchData = async () => {
             try {
                 const [statsRes, classRes] = await Promise.all([
-                    axios.get(`${API_BASE}/dashboard/stats?period=monthly`, {
+                    axios.get(`${API_BASE}/analytics/dashboard/stats?period=monthly`, {
                         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                     }),
                     axios.get(`${API_BASE}/classrooms`, {

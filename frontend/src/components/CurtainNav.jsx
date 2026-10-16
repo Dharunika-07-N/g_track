@@ -12,6 +12,7 @@ import {
     LogOut,
     Building2
 } from 'lucide-react';
+import logoImg from '../assets/logo.jpg';
 
 const CurtainNav = ({ onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -35,6 +36,10 @@ const CurtainNav = ({ onLogout }) => {
             </div>
 
             <div className={`curtain-menu ${isOpen ? 'open' : ''}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                    <img src={logoImg} alt="GitTrack" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'cover' }} />
+                    <span style={{ fontWeight: 800, fontSize: '1.1rem', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GitTrack</span>
+                </div>
                 <div className="curtain-nav">
                     {menuItems.map((item) => (
                         <NavLink
