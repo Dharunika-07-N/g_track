@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import '../styles/Auth.css';
-import logoImg from '../assets/logo.jpg';
+import logoImg from '../assets/logo.png';
 
 import { API_BASE as API_URL } from '../config';
 
@@ -43,7 +43,7 @@ export default function LoginPage(props) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <img src={logoImg} alt="GitTrack" style={{ width: '56px', height: '56px', borderRadius: '14px', objectFit: 'cover', marginBottom: '0.75rem' }} />
+          <img src={logoImg} alt="GitTrack" style={{ width: '64px', height: '64px', borderRadius: '16px', objectFit: 'contain', marginBottom: '0.75rem' }} />
           <h2>Welcome Back</h2>
           <p>Sign in to access your dashboard</p>
         </div>

@@ -12,7 +12,7 @@ import {
     LogOut,
     Building2
 } from 'lucide-react';
-import logoImg from '../assets/logo.jpg';
+import logoImg from '../assets/logo.png';
 
 const CurtainNav = ({ onLogout }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -35,10 +35,10 @@ const CurtainNav = ({ onLogout }) => {
                 {isOpen ? <X size={24} /> : <Menu size={24} />}
             </div>
 
-            <div className={`curtain-menu ${isOpen ? 'open' : ''}`}>
+            <div className={`curtain-menu ${isOpen ? 'open' : ''}`} aria-hidden={!isOpen}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                    <img src={logoImg} alt="GitTrack" style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'cover' }} />
-                    <span style={{ fontWeight: 800, fontSize: '1.1rem', background: 'linear-gradient(135deg, #7c3aed, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GitTrack</span>
+                    <img src={logoImg} alt="GitTrack" style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'contain' }} />
+                    <span style={{ fontWeight: 800, fontSize: '1.2rem', background: 'linear-gradient(135deg, #06b6d4, #0284c7, #3b82f6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>GitTrack</span>
                 </div>
                 <div className="curtain-nav">
                     {menuItems.map((item) => (
@@ -54,18 +54,39 @@ const CurtainNav = ({ onLogout }) => {
                     ))}
                 </div>
                 {onLogout && (
-                    <div className="curtain-nav" style={{ marginTop: 'auto', borderTop: '1px solid var(--border)' }}>
-                        <a
+                    <div style={{ marginTop: 'auto', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center' }}>
+                        <button
+                            type="button"
                             className="curtain-nav-item"
                             onClick={() => {
-                                onLogout();
                                 setIsOpen(false);
+                                onLogout();
                             }}
-                            style={{ cursor: 'pointer' }}
+                            style={{
+                                cursor: 'pointer',
+                                background: 'transparent',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                display: 'inline-flex',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.65rem 1.75rem',
+                                color: '#ef4444',
+                                borderRadius: '12px',
+                                transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                                e.currentTarget.style.borderColor = '#ef4444';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                            }}
                         >
-                            <LogOut />
-                            <span>Sign Out</span>
-                        </a>
+                            <LogOut size={18} />
+                            <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Sign Out</span>
+                        </button>
                     </div>
                 )}
             </div>
